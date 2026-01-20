@@ -6,6 +6,7 @@ CURLREPO=https://github.com/curl/curl
 OPENSSLREPO=https://github.com/openssl/openssl
 ANDROIDNDKLINK=https://dl.google.com/android/repository/android-ndk-r29-linux.zip?hl=pt-br
 
+#Variavel para
 SRCPATH=src
 ANDROIDNDKROOT=$(WORKDIR)/tools/android-ndk-r29
 TOOLCHAIN_RES = $(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64

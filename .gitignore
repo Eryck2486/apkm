@@ -1,3 +1,4 @@
 tools/
 include/
 build/
+.vscode/
