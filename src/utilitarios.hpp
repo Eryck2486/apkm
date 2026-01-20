@@ -4,6 +4,7 @@
 #include <vector>
 #include <curl/curl.h>
 #include <iostream>
+#include <nlohmann/json.hpp>
 
 struct Strings;
 // Estrutura de configuração do repositório
@@ -17,6 +18,9 @@ struct RepoConfig {
     std::vector<std::string> pinned_hashes;
     RepoConfig(bool toAdd, std::string url);
     RepoConfig();
+    static RepoConfig* from_json(std::string jsonstring);
+    static std::string to_json(RepoConfig& r);
+    std::string to_json();
 };
 
 struct Config

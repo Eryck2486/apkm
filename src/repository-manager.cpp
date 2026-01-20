@@ -51,9 +51,7 @@ std::vector<RepoConfig*> repomanager::ObterRepositóriosValidos(Config* configs)
         while (getline(arquivostream, tmp)){
             jsonstr.append(tmp+"\n");
         }
-        json j = json::parse(jsonstr);
-        RepoConfig* repoconfig = new RepoConfig();
-        from_json(j, *repoconfig);
+        RepoConfig* repoconfig = RepoConfig::from_json(jsonstr);
         cout << s->VERIFICANDO_REPOSITORIO[0] << repoconfig->name << " (" << repoconfig->url << "):" << endl;
         Tools* tool = new Tools(
             *repoconfig,
@@ -113,47 +111,13 @@ bool repomanager::atualizarRepositórios(Config* conf){
 }
 
 //Salva ou atualiza um repositório caso o arquivo já exista
-void repomanager::save_or_update(const RepoConfig& myConfig) {
-    // 1. Converte a struct em um objeto JSON
-    json j;
-    to_json(j, myConfig);
-
-    // 2. Transforma o objeto JSON em string
-    // O argumento '4' dentro de dump() serve para identação (pretty print)
-    // Se quiser uma string compacta (para economizar espaço no Android), use dump() sem argumentos.
-    std::string jsonString = j.dump(4);
-
-    // Agora você pode usar sua função de gravar no arquivo
-    // gravar_arquivo("repo.json", jsonString);
-    std::string arquivorepo = sources_dir(myConfig.name);
+void repomanager::save_or_update(RepoConfig* myConfig) {
+    std::string jsonString=myConfig->to_json();
+    std::string arquivorepo = sources_dir(myConfig->name);
     ofstream repostream(arquivorepo);
     if(repostream.is_open()){
         repostream << jsonString;
     }
-}
-
-//Converte string JSON para estrutura local RepoConfig
-void repomanager::from_json(const json& j, RepoConfig& r) {
-    // Mapeamento simples
-    j.at("repo_name").get_to(r.name);
-    j.at("url").get_to(r.url);
-
-    // Mapeamento de campo aninhado (security -> allowed_hashes)
-    if (j.contains("security") && j["security"].contains("allowed_hashes")) {
-        j.at("security").at("allowed_hashes").get_to(r.pinned_hashes);
-    }
-}
-
-//Converte os dados da estrutura RepoConfig para string JSON
-void repomanager::to_json(json& j, const RepoConfig& r) {
-    j = json{
-        {"repo_name", r.name},
-        {"url", r.url},
-        {"security", {
-            {"allowed_hashes", r.pinned_hashes},
-            {"check_expiry", true} // Valor padrão
-        }}
-    };
 }
 
 //Retorna o endereço dos repositórios

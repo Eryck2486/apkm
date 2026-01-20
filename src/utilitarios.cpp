@@ -2,7 +2,9 @@
 #include <sys/system_properties.h>
 #include "idiomas.hpp"
 #include <curl/curl.h>
+#include <nlohmann/json.hpp>
 
+using json = nlohmann::json;
 using namespace std;
 
 RepoConfig::RepoConfig(bool toAdd, std::string url){
@@ -14,6 +16,48 @@ RepoConfig::RepoConfig()
 {
 
 };
+
+//Converte string JSON para estrutura local RepoConfig
+RepoConfig* RepoConfig::from_json(string jsonstr) {
+    json j = json::parse(jsonstr);
+    RepoConfig* r = new RepoConfig();
+    // Mapeamento simples
+    j.at("repo_name").get_to(r->name);
+    j.at("url").get_to(r->url);
+
+    // Mapeamento de campo aninhado (security -> allowed_hashes)
+    if (j.contains("security") && j["security"].contains("allowed_hashes")) {
+        j.at("security").at("allowed_hashes").get_to(r->pinned_hashes);
+    }
+    return r;
+}
+
+//Converte os dados da estrutura RepoConfig para string JSON
+string RepoConfig::to_json(RepoConfig& r) {
+    json j = json{
+        {"repo_name", r.name},
+        {"url", r.url},
+        {"security", {
+            {"allowed_hashes", r.pinned_hashes},
+            {"check_expiry", true} // Valor padrão
+        }}
+    };
+    return j.dump(4);
+}
+
+//Converte os dados da estrutura RepoConfig para string JSON sem argumentos
+string RepoConfig::to_json() {
+    RepoConfig r = *this;
+    json j = json{
+        {"repo_name", r.name},
+        {"url", r.url},
+        {"security", {
+            {"allowed_hashes", r.pinned_hashes},
+            {"check_expiry", true} // Valor padrão
+        }}
+    };
+    return j.dump(4);
+}
 
 //Equivalente ao getprop nativo do Android
 std::string Utilitarios::propertyReader(std::string prop) {

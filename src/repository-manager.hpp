@@ -33,9 +33,7 @@ class repomanager{
         bool adicionarRepositório(Config* conf);
         bool atualizarRepositórios(Config* conf);
     private:
-        static void save_or_update(const RepoConfig& myConfig);
-        static void from_json(const json& j, RepoConfig& r);
-        static void to_json(json& j, const RepoConfig& r);
+        static void save_or_update(RepoConfig* myConfig);
         static std::string sources_dir(std::string sourcename);
         static std::string digestToHex(unsigned char* hash, unsigned int len);
         static CURLcode sslctx_function_adapter(CURL* curl, void* sslctx, void* parm);

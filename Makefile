@@ -1,5 +1,6 @@
  # Define variables
-	
+arch ?= x86_64
+api ?= 35
 WORKDIR=$(PWD)
 JSONREPO=https://github.com/nlohmann/json/
 CURLREPO=https://github.com/curl/curl
@@ -19,21 +20,38 @@ INCLUDE_DIRS=\
 
 # Mapeamento para os nomes da Toolchain do NDK
 CPPANDROIDBIN=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin
-LLVMAR=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
-LLVMRAMLIB=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ramlib
-LLVMNM=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm
-LD=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/ld.lld
+LLVMAR=$(CPPANDROIDBIN)/llvm-ar
+LLVMRANLIB=$(CPPANDROIDBIN)/llvm-ranlib
+LLVMNM=$(CPPANDROIDBIN)/llvm-nm
+LLVMSTRIP=$(CPPANDROIDBIN)/llvm-strip
+LD=$(CPPANDROIDBIN)/ld.lld
+
 OPENSSL_INST=$(WORKDIR)/include/openssl
 
-
-ANDROIDAPILEVEL=35
-ARCHITECTURE=arm64
+ANDROIDAPILEVEL=$(api)
+ARCHITECTURE=$(arch)
 ifeq ($(ARCHITECTURE),arm64)
     NDK_ARCH=aarch64
+    TOOLCHAINNAME=android
+    OPENSSL_TARGET=android-arm64
+    SPECIFIC_LIBS="-lssl"
+else ifeq ($(ARCHITECTURE),x86)
+    NDK_ARCH=i686
+	TOOLCHAINNAME=android
+	OPENSSL_TARGET=android-x86
+    SPECIFIC_LIBS="-lssl"
 else ifeq ($(ARCHITECTURE),arm)
     NDK_ARCH=armv7a
-else
+    TOOLCHAINNAME=androideabi
+    # O OpenSSL para ARM 32-bit precisa desse alvo específico
+    OPENSSL_TARGET=android-arm
+    # IMPORTANTE: Forçar libatomic no ARMv7
+    SPECIFIC_LIBS="-lssl"
+else 
     NDK_ARCH=$(ARCHITECTURE)
+	TOOLCHAINNAME=android
+	OPENSSL_TARGET=android-x86_64
+    SPECIFIC_LIBS="-lssl"
 endif
 
 CXXFLAGS = \
@@ -49,14 +67,23 @@ SRCS = $(SRCPATH)/main.cpp \
 
 EXARGS=include/curl/lib/.libs/libcurl.a include/openssl/libssl.a include/openssl/libcrypto.a -static-libstdc++ -lz
 RM = rm -f
-
-CXX=$(CPPANDROIDBIN)/$(NDK_ARCH)-linux-android$(ANDROIDAPILEVEL)-clang++
-CC=$(CPPANDROIDBIN)/$(NDK_ARCH)-linux-android$(ANDROIDAPILEVEL)-clang
+ARGUMENTOSPADROES="-Wmacro-redefined"
+CXX=$(CPPANDROIDBIN)/$(NDK_ARCH)-linux-$(TOOLCHAINNAME)$(ANDROIDAPILEVEL)-clang++
+CC=$(CPPANDROIDBIN)/$(NDK_ARCH)-linux-$(TOOLCHAINNAME)$(ANDROIDAPILEVEL)-clang
 PATH=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin:/usr/bin
 
-build: $(SRCS) prepare
-	$(CXX) $(CXXFLAGS) $(SRCS) $(EXARGS) -o $(TARGET)
+#Objetos a serem removidos na limpeza
+OBJS= \
+	include/curl/lib/.libs/libcurl.a \
+	include/openssl/libssl.a \
+	include/openssl/libcrypto.a
 
+build: $(SRCS) prepare
+	$(CXX) $(CXXFLAGS) $(SRCS) $(EXARGS) -o $(TARGET);
+	@if [ -e $(TARGET) ]; then \
+		echo "Binário "$(TARGET)" compilado para arquitetura "$(ARCHITECTURE)" com sucesso."; \
+	else echo "Falha ao criar o binário "$(TARGET)" para a arquitetura "$(ARCHITECTURE)"."; \
+	fi;
 
 prepare: clean
 	@mkdir -p build;
@@ -74,7 +101,7 @@ prepare: clean
 	#Baixa o nlohmann/json para processamento de Json;
 	@if [ ! -e include/json ]; then \
 		cd include; \
-		git clone $(JSONREPO); \
+		if [ ! -e include/json ]; then git clone $(JSONREPO); fi; \
 		cd ..; \
 	fi;
 
@@ -82,22 +109,23 @@ prepare: clean
 	@if [ ! -e include/openssl/libssl.a ]; then \
 		echo "Configurando OpenSSL\n"; \
 		cd include; \
-		git clone $(OPENSSLREPO); \
+		if [ ! -e openssl ]; then git clone $(OPENSSLREPO); fi; \
 		cd openssl; \
-		echo $(PATH); \
 		PATH=$(PATH) \
 		AR=$(LLVMAR) \
-		CC=$(CC) \
+		CC="$(CC)" \
 		NM=$(LLVMNM) \
+		LD=$(LD) \
+		STRIP=$(STRIP) \
 		LDFLAGS="-L$(OPENSSL_INST)/" \
-		CCFLAGS="-I$(OPENSSL_INST)/include" \
-		RANLIB=$(LLVMRAMLIB) \
+		CCFLAGS="-I$(OPENSSL_INST)/include $(ARGUMENTOSPADROES)" \
+		RANLIB=$(LLVMRANLIB) \
 		ANDROID_NDK_ROOT=$(ANDROIDNDKROOT) \
-		./Configure android-$(ARCHITECTURE) no-shared \
+		./Configure $(OPENSSL_TARGET) no-shared \
 			-D__ANDROID_API__=$(ANDROIDAPILEVEL) \
 			--prefix=$(OPENSSL_INST) \
 			--openssldir=$(OPENSSL_INST) && \
-		make build_libs -j$(nproc); \
+		make build_libs -j$(nproc) CCFLAGS=$(ARGUMENTOSPADROES); \
 		cd ../../; \
 		echo "\n OpenSSL Configurado"; \
 	fi;
@@ -106,25 +134,32 @@ prepare: clean
 	@if [ ! -e include/curl/lib/.libs/libcurl.a ] && [ -e include/openssl/libssl.a ]; then \
 		echo "Configurando Curl\n"; \
 		cd include; \
-		git clone $(CURLREPO); \
+		if [ ! -e curl ]; then git clone $(CURLREPO); fi; \
 		cd curl; \
 		echo "Configurando Curl..."; \
 		autoreconf -fi && \
+		PATH=$(PATH) \
 		AR=$(LLVMAR) \
 		CC=$(CC) \
+		AS=$(CC) \
 		NM=$(LLVMNM) \
+		LD=$(LD) \
+		STRIP=$(STRIP) \
 		LDFLAGS="-L$(OPENSSL_INST)/" \
-		CCFLAGS="-I$(OPENSSL_INST)/include" \
-		RANLIB=$(LLVMRAMLIB) \
-		./configure --host=$(NDK_ARCH)-linux-android \
-			--target=$(NDK_ARCH)-linux-android \
-			--build=x86_64-pc-linux-gnu \
+		CCFLAGS="-I$(OPENSSL_INST)/include $(ARGUMENTOSPADROES)" \
+		RANLIB=$(LLVMRANLIB) \
+		./configure --host=$(NDK_ARCH)-linux-$(TOOLCHAINNAME) \
 			--enable-static \
 			--disable-shared \
 			--without-libpsl \
+			--disable-ldap \
+            --disable-ldaps \
 			--with-openssl=$(OPENSSL_INST) \
-			--prefix=$(WORKDIR)/include/curl/build_output && \
-		make; \
+			--prefix=$(WORKDIR)/include/curl/build_output \
+			CPPFLAGS="-I$(OPENSSL_INST)/include -DANDROID -D__ANDROID_API__=$(ANDROIDAPILEVEL) $(ARGUMENTOSPADROES)" \
+            LDFLAGS="-L$(OPENSSL_INST) -L$(SYSROOT)/usr/lib/$(NDK_ARCH)-linux-$(TOOLCHAINNAME)/$(ANDROIDAPILEVEL)" \
+            LIBS="$(SPECIFIC_LIBS)" && \
+		make -j$(nproc) CPPLAGS=$(ARGUMENTOSPADROES); \
 		echo "\n Curl Configurado"; \
 	else echo "Erro, falha ao compilar OpenSSL"; \
 	fi;

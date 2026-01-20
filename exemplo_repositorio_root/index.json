@@ -2,6 +2,6 @@
     "name": "exemplo",
     "repository_sources_path": "https://github.com/Eryck2486/apkm",
     "packages": [
-        ["com.app.exemplo","Termux","Descrição do app, ex: Este app abre o repositório do apkm no github"]
+        ["com.termux","Termux APP","Termux combina uma poderosa emulação de terminal com uma extensa coleção de pacote Linux.", "https://f-droid.org/repo/com.termux_1022.apk"]
     ]
 }
