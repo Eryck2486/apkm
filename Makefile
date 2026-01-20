@@ -15,11 +15,10 @@ INCLUDE_DIRS=\
 	include \
 	include/json/include/ \
 	include/curl/include/ \
-	include/openssl/include/ \
-	$(SYSROOT)/usr/include/$(ARCHITECTURE)-linux-android \
-	$(SYSROOT)/usr/include/c++/v1
-	
-CPPANDROIDBIN=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/
+	include/openssl/include/
+
+# Mapeamento para os nomes da Toolchain do NDK
+CPPANDROIDBIN=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin
 LLVMAR=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
 LLVMRAMLIB=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ramlib
 LLVMNM=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm
@@ -28,7 +27,15 @@ OPENSSL_INST=$(WORKDIR)/include/openssl
 
 
 ANDROIDAPILEVEL=35
-ARCHITECTURE =x86_64
+ARCHITECTURE=arm64
+ifeq ($(ARCHITECTURE),arm64)
+    NDK_ARCH=aarch64
+else ifeq ($(ARCHITECTURE),arm)
+    NDK_ARCH=armv7a
+else
+    NDK_ARCH=$(ARCHITECTURE)
+endif
+
 CXXFLAGS = \
 	-std=c++17 \
 	-Wall $(INCLUDE_DIRS:%=-I%) \
@@ -43,8 +50,8 @@ SRCS = $(SRCPATH)/main.cpp \
 EXARGS=include/curl/lib/.libs/libcurl.a include/openssl/libssl.a include/openssl/libcrypto.a -static-libstdc++ -lz
 RM = rm -f
 
-CXX=$(CPPANDROIDBIN)/$(ARCHITECTURE)-linux-android$(ANDROIDAPILEVEL)-clang++
-CC=$(CPPANDROIDBIN)/$(ARCHITECTURE)-linux-android$(ANDROIDAPILEVEL)-clang
+CXX=$(CPPANDROIDBIN)/$(NDK_ARCH)-linux-android$(ANDROIDAPILEVEL)-clang++
+CC=$(CPPANDROIDBIN)/$(NDK_ARCH)-linux-android$(ANDROIDAPILEVEL)-clang
 PATH=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin:/usr/bin
 
 build: $(SRCS) prepare
@@ -52,11 +59,10 @@ build: $(SRCS) prepare
 
 
 prepare: clean
-	@mkdir -p build
-	@mkdir -p tools
-	@mkdir -p include
-
-	#Baixa o NDK do android para cross-compile (recomenda-se sempre baixar a mais recente)
+	@mkdir -p build;
+	@mkdir -p tools;
+	@mkdir -p include;
+	#Baixa o NDK do android para cross-compile (recomenda-se sempre baixar a mais recente);
 	@if [ ! -e tools/android-ndk-r29 ]; then \
 		cd tools; \
 		wget -O ndk.zip $(ANDROIDNDKLINK); \
@@ -65,14 +71,14 @@ prepare: clean
 		cd ..; \
 	fi;
 
-	#Baixa o nlohmann/json para processamento de Json
+	#Baixa o nlohmann/json para processamento de Json;
 	@if [ ! -e include/json ]; then \
 		cd include; \
 		git clone $(JSONREPO); \
 		cd ..; \
 	fi;
 
-	#Baixa e compila as bibliotecas openssl para conexão e verificação https através do curl
+	#Baixa e compila as bibliotecas openssl para conexão e verificação https através do curl;
 	@if [ ! -e include/openssl/libssl.a ]; then \
 		echo "Configurando OpenSSL\n"; \
 		cd include; \
@@ -96,8 +102,8 @@ prepare: clean
 		echo "\n OpenSSL Configurado"; \
 	fi;
 
-	#Baixa e compila o curld
-	@if [ ! -e include/curl/lib/.libs/libcurl.a ]; then \
+	#Baixa e compila o curld;
+	@if [ ! -e include/curl/lib/.libs/libcurl.a ] && [ -e include/openssl/libssl.a ]; then \
 		echo "Configurando Curl\n"; \
 		cd include; \
 		git clone $(CURLREPO); \
@@ -110,14 +116,17 @@ prepare: clean
 		LDFLAGS="-L$(OPENSSL_INST)/" \
 		CCFLAGS="-I$(OPENSSL_INST)/include" \
 		RANLIB=$(LLVMRAMLIB) \
-		./configure --host=$(ARCHITECTURE)-linux-android \
-            --enable-static \
-            --disable-shared \
-            --without-libpsl \
-            --with-openssl=$(OPENSSL_INST) \
-            --prefix=$(WORKDIR)/include/curl/build_output || (cat config.log && exit 1); \
+		./configure --host=$(NDK_ARCH)-linux-android \
+			--target=$(NDK_ARCH)-linux-android \
+			--build=x86_64-pc-linux-gnu \
+			--enable-static \
+			--disable-shared \
+			--without-libpsl \
+			--with-openssl=$(OPENSSL_INST) \
+			--prefix=$(WORKDIR)/include/curl/build_output && \
 		make; \
 		echo "\n Curl Configurado"; \
+	else echo "Erro, falha ao compilar OpenSSL"; \
 	fi;
 
 
@@ -126,4 +135,4 @@ prepare: clean
 
 # Clean target: removes generated files
 clean:
-	$(RM) $(TARGET) $(OBJS) 
+	$(RM) $(TARGET) $(OBJS)
