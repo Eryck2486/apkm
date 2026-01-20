@@ -1,0 +1,7 @@
+{
+    "name": "exemplo",
+    "repository_sources_path": "https://github.com/Eryck2486/apkm",
+    "packages": [
+        ["com.app.exemplo","Termux","Descrição do app, ex: Este app abre o repositório do apkm no github"]
+    ]
+}
