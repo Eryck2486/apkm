@@ -17,6 +17,19 @@ RepoConfig::RepoConfig()
 
 };
 
+RemoteRepoConfig* RemoteRepoConfig::fromJson(string jsonstring){
+    RemoteRepoConfig* config = new RemoteRepoConfig();
+    json j = json::parse(jsonstring);
+    if(j.contains("name") && j.contains("repository_sources_path") && j.contains("packages")){
+        j.at("name").get_to(config->name);
+        j.at("repository_sources_path").get_to(config->repository_sources_path);
+        if (j["packages"].is_array()) {
+            j.at("packages").get_to(config->packages);
+        }
+    }
+    return config;
+}
+
 //Converte string JSON para estrutura local RepoConfig
 RepoConfig* RepoConfig::from_json(string jsonstr) {
     json j = json::parse(jsonstr);
@@ -71,6 +84,15 @@ std::string Utilitarios::propertyReader(std::string prop) {
     return "none";
 }
 
+void Utilitarios::stringReplace(std::string* string, std::string alvo, std::string substituto){
+    size_t pos = 0;
+    // Loop encontra e substitui até find retornar npos
+    while ((pos = string->find(alvo, pos)) != std::string::npos) {
+        string->replace(pos, alvo.length(), substituto);
+        pos += substituto.length();
+    }
+}
+
 //Prepara as configurações da execução para o processamento da instrução
 Config::Config(int argc, char* argv[]){
     //Prepara o suporte de idioma do sistema
@@ -81,14 +103,24 @@ Config::Config(int argc, char* argv[]){
     nomebinario = argv[0];
     //Percorre e processa a lista de argumentos
     for(int arg=1; arg < argc; arg++){
-        string argstr = argv[arg];
-        if(argstr=="update"){
-            
-        }else if(argstr=="--add-repository"){
+        string argstr = argv[arg];  
+        //1 = atualizar (update)
+        //2 = adicionar repositório (--add-repository)
+        //3 = remover repositórios inválidos (remove-uknown)
+        if(ssl && argstr=="--no-ssl"){
+            ssl=false;
+        }
 
+        if(argstr=="update"){
+            instrução=1;
+        }else if(argstr=="--add-repository"){
+            instrução=2;
+        }else if(argstr=="remove-uknown"){
+            instrução=3;
+        }else{
+            comandoInvalido=argstr;
         }
     }
-    printcfg(this, stringsidioma);
 }
 
 //Mostra as configurações da execução

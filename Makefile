@@ -85,6 +85,13 @@ build: $(SRCS) prepare
 	else echo "Falha ao criar o binário "$(TARGET)" para a arquitetura "$(ARCHITECTURE)"."; \
 	fi;
 
+build_apkm: $(SRCS)
+	$(CXX) $(CXXFLAGS) $(SRCS) $(EXARGS) -o $(TARGET);
+	@if [ -e $(TARGET) ]; then \
+		echo "Binário "$(TARGET)" compilado para arquitetura "$(ARCHITECTURE)" com sucesso."; \
+	else echo "Falha ao criar o binário "$(TARGET)" para a arquitetura "$(ARCHITECTURE)"."; \
+	fi;
+
 prepare: clean
 	@mkdir -p build;
 	@mkdir -p tools;

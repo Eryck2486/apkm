@@ -1,1 +1,4 @@
 O arquivo index pode ser utilizado tanto para especificar links externos para apks quanto arquivos locais do servidor bastando apenas adicionar o link https para o arquivo APK para arquivos de sites externos ou o direório a partir da raiz do diretório exposto do servidor por exemplo "https://github.com/Eryck2486/apkm/com.app.exemplo" para arquivos locais
+
+ordem dos valores:
+["pacote", "Nome do APP", "descriução", "local/url"]

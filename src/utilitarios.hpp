@@ -9,8 +9,9 @@
 struct Strings;
 // Estrutura de configuração do repositório
 struct RepoConfig {
+    std::string filepath;
     bool toAdd = false;
-    std::string errMsg;
+    std::string errMsg = "None";
     bool valido=false;
     bool check_expiry=false;
     std::string name;
@@ -30,12 +31,13 @@ struct Config
     //Instância global do CURL
     CURL* curl;
     int instrução;
-    std::string* url;
     /*
-    0 = atualizar (update)
-    1 = adicionar repositório (--add-repository)
-    2 = remover repositórios inválidos (remove-uknown)
+    1 = atualizar (update)
+    2 = adicionar repositório (--add-repository)
+    3 = remover repositórios inválidos (remove-uknown)
+    4 = instrução inválida
     */
+    std::string* url;
     bool ssl = true;
     std::vector<std::string> pacotes;
     std::string nomebinario;
@@ -45,29 +47,39 @@ struct Config
 
     //Converte true para sim e false para não
     static std::string boolToHLang(bool opt, Strings* stringsidioma);
+    std::string comandoInvalido;
 };
 
 struct RemoteRepoConfig
 {
+    //construtor que recebe url e retorna os dados do repositório
+    static RemoteRepoConfig* fromJson(std::string jsonstring);
+
     //nome do repositório (opcional, sem caracteres especiais ou espaços ex: meu-repositorio)
     std::string name;
     //local onde o apkm procurará pelos apps
     std::string repository_sources_path;
     //
-    std::vector<std::vector<std::string>> packages;
+    std::vector<std::vector<std::string>> packages;                      
     /*Ordem exemplo
     "packages": [
-        ["com.app.exemplo","Nome do APP","Descrição do app, ex: Este app abre o repositório do apkm no github"]
+        ["com.app.exemplo","Nome do APP","Descrição do app, ex: Este app abre o repositório do apkm no github", "com.app/exemplo.apk"]
     ]
-    
-    O nome do pacote deve ser exemplo.apk e deve estar na pasta com.app que por sua vez está na repository_sources_path exemplo:
-    /home/user/com.app/exemplo.apk
-    caso queira pode incluir: exemplo.icon.png para interface gráfica (opcional)
     */
+};
+
+//Estrutura que contem os objetos a serem utilizados na função verify_callback
+struct Tools
+{
+    RepoConfig* repoconfig;
+    Config* configs;
+    Tools(RepoConfig* repoonfig, Config* configs);
+    std::string serverResponse;
 };
 
 class Utilitarios
 {
     public:
         static std::string propertyReader(std::string prop);
+        static void stringReplace(std::string* string, std::string alvo, std::string novotexto);
 };

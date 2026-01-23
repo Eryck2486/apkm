@@ -14,6 +14,8 @@ struct Strings {
     std::vector<std::string> ERRO_HASHS_DESCONHECIDOS;
     std::vector<std::string> VERIFICANDO_REPOSITORIO;
     std::vector<std::string> PRONTO;
+    std::vector<std::string> ERRO_COM_INVALIDO;
+    std::vector<std::string> AJUDA;
 
     Strings(std::vector<std::vector<std::string>> textos);
     static Strings* obterStrings();

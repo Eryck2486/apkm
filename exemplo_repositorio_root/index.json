@@ -1,7 +1,8 @@
 {
     "name": "exemplo",
-    "repository_sources_path": "https://github.com/Eryck2486/apkm",
+    "repository_sources_path": "https://raw.githubusercontent.com/Eryck2486/apkm/refs/heads/main/exemplo_repositorio_root/",
     "packages": [
-        ["com.termux","Termux APP","Termux combina uma poderosa emulação de terminal com uma extensa coleção de pacote Linux.", "https://f-droid.org/repo/com.termux_1022.apk"]
+        ["com.termux","Termux","Termux combina uma poderosa emulação de terminal com uma extensa coleção de pacote Linux.", "https://f-droid.org/repo/com.termux_1022.apk", "all"],
+        ["com.app.exemplo", "Exemplo app", "Este app faz absolutamente nada, divirta-se", "com.app/exemplo.apk", "all"]
     ]
 }
