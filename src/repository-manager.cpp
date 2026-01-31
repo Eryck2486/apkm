@@ -18,14 +18,49 @@
 using namespace std;
 using json = nlohmann::json;
 
-//Construtor para struct tools
-Tools::Tools(RepoConfig* repoonfig, Config* configs){
-    this->configs=configs;
-    this->repoconfig=repoonfig;
+Repomanager::Repomanager(Config* config)
+{
+    this->configs = config;
+    this->configs->reposglobais=ObterTodosRepositórios();
 }
 
-//Obtem a lista de repositórios a partir da pasta de repositórios
-std::vector<RepoConfig*> repomanager::ObterRepositórios(Config* configs){
+//Carrega todos os repositórios disponíveis em um único Array
+vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
+    //lista que será retornada ao final
+    vector<RemoteRepoConfig*> reposglobais;
+    //Carregando repositórios do "disco"
+    vector<RepoConfig*> reposlocais = CarregarRepositóriosLocais(configs);
+    for(RepoConfig* repo : reposlocais){
+        Tools tool = Tools(repo, configs);
+        if(validar(tool)){
+            RemoteRepoConfig* serverRepo = RemoteRepoConfig::fromJson(tool.serverResponse);
+            filesystem::path origem = repo->filepath;
+            serverRepo->origem=origem.filename();
+            if(serverRepo){
+                reposglobais.push_back(serverRepo);
+            }
+        }
+        delete(repo);
+    }
+
+    //Lógica para carregar RemoteRepoConfig de AddOns
+    for(AddOn* addon : AddOn::CarregarTodos(configs)){
+        if(addon->config->dinamico){
+            configs->addonsdinamicos.push_back(addon);
+        }else{
+            reposglobais.push_back(addon->getRepo());
+        }
+    }
+
+    if(configs->instrução==1){
+
+    }
+    //
+    return reposglobais;
+}
+
+//Obtem a lista de repositórios a partir da pasta de repositórios locais
+std::vector<RepoConfig*> Repomanager::CarregarRepositóriosLocais(Config* configs){
     Strings* s = configs->stringsidioma;
     cout << s->CARREGANDO_REPOSITORIOS[0] << endl;
     std::queue<std::string> repoFiles;
@@ -53,107 +88,190 @@ std::vector<RepoConfig*> repomanager::ObterRepositórios(Config* configs){
         }
         RepoConfig* repoconfig = RepoConfig::from_json(jsonstr);
         repoconfig->filepath=file;
-        cout << s->VERIFICANDO_REPOSITORIO[0] << repoconfig->name << " (" << repoconfig->url << "):" << endl;
         repositorios.push_back(repoconfig);
     }
     return repositorios;
 }
 
 //Verifica a validade de um domínio HTTPS
-bool repomanager::validar(Tools& tools) {
+bool Repomanager::validar(Tools& tools) {
     CURL* curl = tools.configs->curl;
     if (!curl) return false;
 
-    // REDIRECIONA A SAÍDA: Isso impede que o HTML apareça no terminal
+    // 1. LIMPA o estado anterior do handle para esta nova requisição
+    curl_easy_reset(curl);
+
+    // 2. Garante que a string de resposta esteja vazia
+    tools.serverResponse = "";
+    tools.repoconfig->valido = false;
+
+    long http_code = 0;
+
+    // 3. Configura TUDO novamente (obrigatório após o reset)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_null_callback);
-
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &tools.serverResponse);
-
-    curl_easy_setopt(curl, CURLOPT_URL, (tools.repoconfig->url+"/index.json").c_str());
     
-    // Passa o endereço da struct Tool para o parm do callback
+    std::string full_url = tools.repoconfig->url + "/index.json";
+    curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
+    
     curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, &tools);
-
     curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, sslctx_function_adapter);
 
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "APKM-Manager/1.0");
 
-    curl_easy_setopt(curl, CURLOPT_CERTINFO, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L); // Desativa o cache de sessão SSL
+    curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);       // Força uma nova conexão TCP
+    curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1L);        // Fecha a conexão após o uso
 
-    curl_easy_perform(curl);
+    // 4. Executa
+    CURLcode res = curl_easy_perform(curl);
     
-    if(tools.repoconfig->valido){
+    if (res != CURLE_OK) {
+        tools.repoconfig->errMsg = curl_easy_strerror(res);
+        return false;
+    }
+
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    if (tools.repoconfig->valido && http_code >= 200 && http_code < 300) {
         return true;
     }
-    cout << tools.repoconfig->errMsg << endl;
+
+    // Se chegou aqui, deu erro
+    if (http_code != 200) {
+        cout << http_code << "." << endl;
+        tools.repoconfig->errMsg = tools.configs->stringsidioma->REPOSITORIO_INVALIDO[0];
+    }
     return false;
 }
 
 //Adiciona o repositório
-bool repomanager::adicionarRepositório(Config* conf){
+bool Repomanager::adicionarRepositório(){
     RepoConfig* repoconfig = new RepoConfig(
         true,
-        *conf->url
+        configs->url
     );
-}
-
-//Atualiza os repositórios
-bool repomanager::atualizarRepositórios(Config* conf){
-    vector<RepoConfig*> repos = ObterRepositórios(conf);
-    for(RepoConfig* repo : repos){
-        Tools tool = Tools(repo, conf);
-        if(validar(tool)){
-            save_or_update(repo);
-        }
+    Tools tool = Tools(repoconfig, configs);
+    cout << configs->stringsidioma->VERIFICANDO_REPOSITORIO[0]+configs->url+": ";
+    if(validar(tool)){
+        cout << configs->stringsidioma->PRONTO[0] << endl;
         RemoteRepoConfig* onlineconfig = RemoteRepoConfig::fromJson(tool.serverResponse);
         if(onlineconfig){
-            cout << "Lendo repositório" << endl <<
-            "Nome: " << onlineconfig->name << endl <<
-            "URL: " << onlineconfig->repository_sources_path << endl;
-            for(vector<string> packagedata : onlineconfig->packages){
-                cout << "Pacote: pack: " << packagedata[0] << ", Name: " << packagedata[1] << ", Desc: " << packagedata[2] << ",End: " << packagedata[3] << ", Arch: " << packagedata[4] << endl;
+            repoconfig->name=onlineconfig->name;
+            repoconfig->filepath=sources_dir(repoconfig->name+".json");
+            cout << configs->stringsidioma->ADICIONANDO_REPOSITÒRIOS[0] << repoconfig->name << configs->stringsidioma->ADICIONANDO_REPOSITÒRIOS[1] << endl;
+            if (cin.peek() == '\n') {
+                cin.ignore();
             }
+            save_or_update(repoconfig);
+            cout << configs->stringsidioma->REPOSITORIO_ADICIONADO[0] << endl;
+            return true;
         }else{
+            cout << configs->stringsidioma->REPOSITORIO_INVALIDO[0];
+            return false;
+        }
+    }else{
+        cerr << repoconfig->errMsg << endl;
+    }
+    return false;
+}
 
+bool Repomanager::removerRepositório(){
+    vector<RepoConfig*> repos = CarregarRepositóriosLocais(configs);
+    for(string nome : configs->nomes){
+        bool encontrado = false;
+        for(RepoConfig* repo : repos){
+            if(repo->name==nome){
+                if(filesystem::exists(repo->filepath))
+                {
+                    filesystem::remove(repo->filepath);
+                    cout << configs->stringsidioma->REPOSITORIO_REMOVIDO[0] << repo->name << configs->stringsidioma->REPOSITORIO_REMOVIDO[1] << endl;
+                    encontrado=true;
+                    break;
+                }
+
+            }
+        }
+        if(!encontrado){
+            cerr << configs->stringsidioma->REPOSITORIO_N_ENCONTRADO[0] << nome << configs->stringsidioma->REPOSITORIO_N_ENCONTRADO[1] << endl;
+            return false;
         }
     }
     return true;
 }
 
-bool repomanager::removerInvalidos(std::vector<RepoConfig*> repos){
-    for(RepoConfig* repo : repos){
-        if(!repo->valido){
-            filesystem::remove(repo->filepath);
+bool Repomanager::listarRepositórios(){
+    vector<RemoteRepoConfig*> repos = configs->reposglobais;
+    if(repos.size()>0){
+        for(RemoteRepoConfig* repo : configs->reposglobais){
+            cout << repo->name << " (" << repo->origem << "): " << endl;
         }
+    }else{
+        cerr << configs->stringsidioma->NENHUM_REPO_ENCONTRADO[0] << endl;
+        return false;
     }
+    return true;
+}
+
+bool Repomanager::baixar(const std::string& url, const std::string& destino, bool mostrarProgresso) {
+    CURL* curl = configs->curl;
+    curl_easy_reset(curl);
+
+    FILE* fp = fopen(destino.c_str(), "wb");
+    if (!fp) return false;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    
+    // Timeout: não fica esperando para sempre (ex: 30s para conectar)
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
+
+    if (mostrarProgresso) {
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    fclose(fp);
+
+    if (res != CURLE_OK) {
+        // Se falhou, remove o arquivo incompleto/corrompido
+        std::filesystem::remove(destino);
+        return false;
+    }
+    return true;
 }
 
 //Salva ou atualiza um repositório caso o arquivo já exista
-void repomanager::save_or_update(RepoConfig* myConfig) {
+void Repomanager::save_or_update(RepoConfig* myConfig) {
     std::string jsonString=myConfig->to_json();
-    cout << jsonString << endl;
     std::string arquivorepo = myConfig->filepath;
     ofstream repostream(arquivorepo);
     if(repostream.is_open()){
-        cout << "Gravando \"" << arquivorepo << "\"" << endl;
         repostream << jsonString << endl;
         repostream.close();
-        cout << "\"" << arquivorepo << "\" gravado" << endl;
     }else{
-        cout << "Erro ao abrir \"" << arquivorepo << "\"" << endl;
+        
     }
 }
 
 //Retorna o endereço dos repositórios
-string repomanager::sources_dir(std::string sourcename){
+string Repomanager::sources_dir(std::string sourcename){
     if(sourcename!=""){
-        return "/data/apkm-sources/"+sourcename;
+        return (configs->diretórioSources+"/"+sourcename);
     }
-    return "/data/apkm-sources";
-} 
+    return configs->diretórioSources;
+}
+
+
 
 // Converte o digest binário para string Hexadecimal
-std::string repomanager::digestToHex(unsigned char* hash, unsigned int len) {
+std::string Repomanager::digestToHex(unsigned char* hash, unsigned int len) {
     std::stringstream ss;
     for (unsigned int i = 0; i < len; ++i) {
         ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
@@ -162,7 +280,7 @@ std::string repomanager::digestToHex(unsigned char* hash, unsigned int len) {
 }
 
 //Função auxiliar para verify_callback
-CURLcode repomanager::sslctx_function_adapter(CURL* curl, void* sslctx, void* parm) {
+CURLcode Repomanager::sslctx_function_adapter(CURL* curl, void* sslctx, void* parm) {
     SSL_CTX* ctx = (SSL_CTX*)sslctx;
     
     // Esta função define o callback e passa o parm (RepoConfig) como o 'arg' do verify_callback
@@ -172,38 +290,56 @@ CURLcode repomanager::sslctx_function_adapter(CURL* curl, void* sslctx, void* pa
 }
 
 // Função para descartar ou capturar a saída do servidor
-size_t repomanager::write_null_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+size_t Repomanager::write_null_callback(void *contents, size_t size, size_t nmemb, void *userp) {
     // Se você quiser capturar o JSON do repo futuramente:
     ((std::string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
 }
 
-int repomanager::verify_callback(X509_STORE_CTX* ctx, void* arg) {
+size_t Repomanager::write_data(void* ptr, size_t size, size_t nmemb, FILE* stream) {
+    return fwrite(ptr, size, nmemb, stream);
+}
+
+int Repomanager::verify_callback(X509_STORE_CTX* ctx, void* arg) {
     Tools* tool = (Tools*)arg;
     vector<string> dominioHashs = GetHashs(tool, ctx);
-    switch(tool->configs->instrução){
+    switch(tool->configs->instrução)
+    {
         case 1:
             {
                 if(tool->configs->ssl && compareHashes(dominioHashs, tool->repoconfig->pinned_hashes)){
                     tool->repoconfig->pinned_hashes.clear();
                     tool->repoconfig->pinned_hashes=dominioHashs;
                     tool->repoconfig->valido=true;
+                    cout << "At" << endl;
                     return 1;
                 }else if(!tool->configs->ssl){
                     tool->repoconfig->pinned_hashes.clear();
                     tool->repoconfig->pinned_hashes=dominioHashs;
                     tool->repoconfig->valido=true;
+                    cout << "At" << endl;
                     return 1;
                 }
+                tool->repoconfig->errMsg = tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[0]+"\""+tool->configs->nomebinario+" --remove "+tool->repoconfig->name+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[1]+"\""+tool->configs->nomebinario+" --update "+tool->repoconfig->name+" --no-ssl"+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[2];
             }
-            break;
+        case 2:
+            {
+                tool->repoconfig->pinned_hashes.clear();
+                tool->repoconfig->pinned_hashes=dominioHashs;
+                tool->repoconfig->valido=true;
+                return 1;
+            }
+        default:
+            if(compareHashes(tool->repoconfig->pinned_hashes, dominioHashs)){
+                tool->repoconfig->valido=true;
+                return 1;
+            }    
     }
-    tool->repoconfig->errMsg = "[SSL] Nenhum hash da cadeia coincide com os pins configurados.\n";
     tool->repoconfig->valido = false;
     return 0; // Bloqueia a conexão
 }
 
-bool repomanager::compareHashes(std::vector<std::string> dominioHashs, std::vector<std::string> hashesLocais){
+bool Repomanager::compareHashes(std::vector<std::string> dominioHashs, std::vector<std::string> hashesLocais){
     for(string hashLocal : hashesLocais){
         for(string hashDominio : dominioHashs){
             if(hashLocal == hashDominio) return true;
@@ -213,7 +349,7 @@ bool repomanager::compareHashes(std::vector<std::string> dominioHashs, std::vect
 }
 
 //Obtem os hashes dos certificados do servidor
-vector<string> repomanager::GetHashs(Tools* tool, X509_STORE_CTX* ctx){
+vector<string> Repomanager::GetHashs(Tools* tool, X509_STORE_CTX* ctx){
     vector<string> hashes;
     bool dominioCertificado = false;
     //Obtemos o certificado folha (o principal do site)
@@ -237,7 +373,7 @@ vector<string> repomanager::GetHashs(Tools* tool, X509_STORE_CTX* ctx){
         unsigned char hash[SHA256_DIGEST_LENGTH];
         unsigned int hash_len = 0;
         if (X509_digest(cert, EVP_sha256(), hash, &hash_len)) {
-            if(verificar_dominio(cert, gethostname(tool->repoconfig->url))) dominioCertificado=true;
+            if(verificar_dominio(cert, gethostname(tool->repoconfig->url)) && is_valid_now(cert, *tool->repoconfig)) dominioCertificado=true;
             std::string current_hash = digestToHex(hash, hash_len);
             hashes.push_back(current_hash);
         }
@@ -248,7 +384,7 @@ vector<string> repomanager::GetHashs(Tools* tool, X509_STORE_CTX* ctx){
     return hashes;
 }
 
-int repomanager::verificar_dominio(X509* cert, const std::string& hostname) {
+int Repomanager::verificar_dominio(X509* cert, const std::string& hostname) {
     // X509_check_host: Verifica o host contra SAN/CN.
     // O último parâmetro (char **peername) pode ser usado para obter o nome do peer (NULL aqui).
     int result = X509_check_host(cert, hostname.c_str(), hostname.length(), 0, NULL);
@@ -257,7 +393,7 @@ int repomanager::verificar_dominio(X509* cert, const std::string& hostname) {
 }
 
 //Verifica se a data de validade do certificado é válida se comparada com a data do sistema
-bool repomanager::is_valid_now(X509* cert, RepoConfig& config) {
+bool Repomanager::is_valid_now(X509* cert, RepoConfig& config) {
     // > 0 se o tempo do cert é POSTERIOR ao tempo fornecido
     if (X509_cmp_time(X509_get0_notBefore(cert), NULL) > 0) {
         // O certificado só será válido no futuro
@@ -276,7 +412,7 @@ bool repomanager::is_valid_now(X509* cert, RepoConfig& config) {
 }
 
 //obtem o domínio de uma URL
-std::string repomanager::gethostname(string url) {
+std::string Repomanager::gethostname(string url) {
     CURLU *url_handle;
     CURLUcode rc;
 
@@ -306,4 +442,24 @@ std::string repomanager::gethostname(string url) {
     }
 
     return resultado;
+}
+
+int Repomanager::progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
+    if (dltotal <= 0) return 0; // Evita divisão por zero no início
+
+    // Calcula a porcentagem
+    double percentage = (double)dlnow / (double)dltotal * 100.0;
+    int width = 30; // Largura da barra em caracteres
+    int pos = width * (percentage / 100.0);
+
+    // Desenha a barra no terminal
+    std::cout << "\r["; // \r volta o cursor para o início da linha
+    for (int i = 0; i < width; ++i) {
+        if (i < pos) std::cout << "#";
+        else if (i == pos) std::cout << ">";
+        else std::cout << "-";
+    }
+    std::cout << "] " << std::fixed << std::setprecision(1) << percentage << "%" << std::flush;
+
+    return 0; // Retorne 0 para continuar o download, ou 1 para abortar
 }

@@ -11,43 +11,59 @@
 #include <iomanip>
 #include "main.hpp"
 #include "idiomas.hpp"
+#include "gerenciador-pacotes.hpp"
 
 using namespace std;
 
 int Main::main(int argc, char* argv[]) {
+    curl_global_init(CURL_GLOBAL_ALL);
     Config* config = new Config(argc, argv);
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    repomanager* manager = new repomanager(config);
+    Repomanager* manager = new Repomanager(config);
+    GerenciadorPacotes* gerenciador = new GerenciadorPacotes(config, manager);
     int retorno = 1;
+    Config::printcfg(config, config->stringsidioma);
     if (config->curl){
         switch(config->instrução){
-            case 1: 
-                {   
-                    Config::printcfg(config, config->stringsidioma);
-                    bool conclusão = manager->atualizarRepositórios(config);
-                }
-                retorno = 0;
+            case 1:
                 break;
             case 2:
-                {
-                    
+                if(manager->adicionarRepositório()){
+                    retorno = 0;
                 }
-                retorno = 0;
                 break;
             case 3:
-                {
-                    Config::printcfg(config, config->stringsidioma);
-                    vector<RepoConfig*> repos = manager->ObterRepositórios(config);
-                    manager->removerInvalidos(repos);
+                if(manager->removerRepositório()){
+                    retorno = 0;
                 }
+                break;
+            case 4:
+                if(manager->listarRepositórios()){
+                    retorno = 0;
+                }
+                break;
+            case 5:
+                //listar AddOns
                 retorno = 0;
+                break;
+            case 6:
+                if(gerenciador->pesquisar()){
+                    retorno = 0;
+                }
+                break;
+            case 7:
+                if(gerenciador->instalarPacotes()){
+                    retorno = 0;
+                }
                 break;
             default:
                 printhelp(config);
+                retorno=1;
                 break;
         }
     }
-    delete(manager, config);
+    delete(manager);
+    delete(config);
+    curl_global_cleanup();
     return retorno;
 }
 

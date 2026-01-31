@@ -63,7 +63,8 @@ TARGET = build/apkm
 SRCS = $(SRCPATH)/main.cpp \
 	$(SRCPATH)/repository-manager.cpp \
 	$(SRCPATH)/idiomas.cpp \
-	$(SRCPATH)/utilitarios.cpp
+	$(SRCPATH)/utilitarios.cpp \
+	$(SRCPATH)/gerenciador-pacotes.cpp
 
 EXARGS=include/curl/lib/.libs/libcurl.a include/openssl/libssl.a include/openssl/libcrypto.a -static-libstdc++ -lz
 RM = rm -f
