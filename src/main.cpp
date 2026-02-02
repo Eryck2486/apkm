@@ -55,6 +55,11 @@ int Main::main(int argc, char* argv[]) {
                     retorno = 0;
                 }
                 break;
+            case 8:
+                if(gerenciador->desinstalarPacotes()){
+                    retorno = 0;
+                }
+                break;
             default:
                 printhelp(config);
                 retorno=1;

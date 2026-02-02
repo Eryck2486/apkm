@@ -3,6 +3,7 @@ arch ?= x86_64
 api ?= 35
 WORKDIR=$(PWD)
 JSONREPO=https://github.com/nlohmann/json/
+LIBZIPREPO=https://github.com/nih-at/libzip
 CURLREPO=https://github.com/curl/curl
 OPENSSLREPO=https://github.com/openssl/openssl
 ANDROIDNDKLINK=https://dl.google.com/android/repository/android-ndk-r29-linux.zip?hl=pt-br
@@ -16,7 +17,8 @@ INCLUDE_DIRS=\
 	include \
 	include/json/include/ \
 	include/curl/include/ \
-	include/openssl/include/
+	include/openssl/include/ \
+	include/libzip/
 
 # Mapeamento para os nomes da Toolchain do NDK
 CPPANDROIDBIN=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin
@@ -27,6 +29,7 @@ LLVMSTRIP=$(CPPANDROIDBIN)/llvm-strip
 LD=$(CPPANDROIDBIN)/ld.lld
 
 OPENSSL_INST=$(WORKDIR)/include/openssl
+LIBZIP_INST=$(WORKDIR)/include/libzip/build_output
 
 ANDROIDAPILEVEL=$(api)
 ARCHITECTURE=$(arch)
@@ -66,7 +69,7 @@ SRCS = $(SRCPATH)/main.cpp \
 	$(SRCPATH)/utilitarios.cpp \
 	$(SRCPATH)/gerenciador-pacotes.cpp
 
-EXARGS=include/curl/lib/.libs/libcurl.a include/openssl/libssl.a include/openssl/libcrypto.a -static-libstdc++ -lz
+EXARGS=include/curl/lib/.libs/libcurl.a include/openssl/libssl.a include/openssl/libcrypto.a include/libzip/lib/libzip.a -static-libstdc++ -lz
 RM = rm -f
 ARGUMENTOSPADROES="-Wmacro-redefined"
 CXX=$(CPPANDROIDBIN)/$(NDK_ARCH)-linux-$(TOOLCHAINNAME)$(ANDROIDAPILEVEL)-clang++
@@ -77,14 +80,11 @@ PATH=$(ANDROIDNDKROOT)/toolchains/llvm/prebuilt/linux-x86_64/bin:/usr/bin
 OBJS= \
 	include/curl/lib/.libs/libcurl.a \
 	include/openssl/libssl.a \
-	include/openssl/libcrypto.a
+	include/openssl/libcrypto.a \
+	include/libzip/lib/libzip.a
 
 build: $(SRCS) prepare
-	$(CXX) $(CXXFLAGS) $(SRCS) $(EXARGS) -o $(TARGET);
-	@if [ -e $(TARGET) ]; then \
-		echo "Binário "$(TARGET)" compilado para arquitetura "$(ARCHITECTURE)" com sucesso."; \
-	else echo "Falha ao criar o binário "$(TARGET)" para a arquitetura "$(ARCHITECTURE)"."; \
-	fi;
+	$(MAKE) build_apkm
 
 build_apkm: $(SRCS)
 	$(CXX) $(CXXFLAGS) $(SRCS) $(EXARGS) -o $(TARGET);
@@ -170,6 +170,55 @@ prepare: clean
 		make -j$(nproc) CPPLAGS=$(ARGUMENTOSPADROES); \
 		echo "\n Curl Configurado"; \
 	else echo "Erro, falha ao compilar OpenSSL"; \
+	fi;
+
+	#Baixa e compila a biblioteca libzip para manipulação de arquivos zip/apk;
+	@if [ ! -e include/libzip/lib/libzip.a ]; then \
+		echo "Configurando libzip\n"; \
+		cd include; \
+		if [ ! -e libzip ]; then git clone $(LIBZIPREPO); fi; \
+		cd libzip; \
+		mkdir -p build && cd build; \
+		PATH=$(PATH) \
+		AR=$(LLVMAR) \
+		CC="$(CC)" \
+		NM=$(LLVMNM) \
+		LD=$(LD) \
+		STRIP=$(STRIP) \
+		LDFLAGS="-L$(OPENSSL_INST)/" \
+		CCFLAGS="-I$(OPENSSL_INST)/include $(ARGUMENTOSPADROES)" \
+		RANLIB=$(LLVMRANLIB) \
+		ANDROID_NDK_ROOT=$(ANDROIDNDKROOT) \
+		cmake .. \
+			-DCMAKE_TOOLCHAIN_FILE=$(ANDROIDNDKROOT)/build/cmake/android.toolchain.cmake \
+			-DANDROID_ABI=$(ARCHITECTURE) \
+			-DANDROID_PLATFORM=android-$(ANDROIDAPILEVEL) \
+			-DBUILD_SHARED_LIBS=OFF \
+			-DCMAKE_INSTALL_PREFIX=$(LIBZIP_INST) \
+			-DENABLE_GNUTLS=OFF \
+			-DENABLE_MBEDTLS=OFF \
+			-DENABLE_BZIP2=OFF \
+			-DENABLE_LZMA=OFF \
+			-DENABLE_ZSTD=OFF \
+			-DENABLE_OPENSSL=ON \
+			-DBUILD_TOOLS=OFF \
+			-DBUILD_EXAMPLES=OFF \
+			-DBUILD_DOC=OFF \
+			-DBUILD_REGRESS=OFF \
+			-DBUILD_OSSFUZZ=OFF \
+			-DOPENSSL_ROOT_DIR=$(WORKDIR)/include/openssl \
+			-DOPENSSL_INCLUDE_DIR=$(WORKDIR)/include/openssl/include \
+			-DOPENSSL_CRYPTO_LIBRARY=$(WORKDIR)/include/openssl/libcrypto.a \
+			-DOPENSSL_SSL_LIBRARY=$(WORKDIR)/include/openssl/libssl.a \
+			-DZLIB_LIBRARY=$(SYSROOT)/usr/lib/$(NDK_ARCH)-linux-$(TOOLCHAINNAME)/$(ANDROIDAPILEVEL)/libz.a \
+			-DZLIB_INCLUDE_DIR=$(SYSROOT)/usr/include \
+			-DCMAKE_INSTALL_LIBDIR=lib \
+			-DCMAKE_INSTALL_INCLUDEDIR=include \
+			-DCMAKE_INSTALL_BINDIR=bin; \
+		cd ..; \
+		make -j$(nproc); \
+		cd ../../../; \
+		echo "\n libzip Configurado"; \
 	fi;
 
 

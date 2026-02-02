@@ -34,13 +34,13 @@ vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
         Tools tool = Tools(repo, configs);
         if(validar(tool)){
             RemoteRepoConfig* serverRepo = RemoteRepoConfig::fromJson(tool.serverResponse);
+            serverRepo->repoConfig=repo;
             filesystem::path origem = repo->filepath;
             serverRepo->origem=origem.filename();
             if(serverRepo){
                 reposglobais.push_back(serverRepo);
             }
         }
-        delete(repo);
     }
 
     //Lógica para carregar RemoteRepoConfig de AddOns
@@ -214,10 +214,11 @@ bool Repomanager::listarRepositórios(){
     return true;
 }
 
-bool Repomanager::baixar(const std::string& url, const std::string& destino, bool mostrarProgresso) {
+bool Repomanager::baixarApk(const std::string& url, const std::string& destino, bool mostrarProgresso, RemoteRepoConfig* repoConfig) {
     CURL* curl = configs->curl;
+    if (!curl) return false;
+    Tools tools = Tools(repoConfig->repoConfig, configs);
     curl_easy_reset(curl);
-
     FILE* fp = fopen(destino.c_str(), "wb");
     if (!fp) return false;
 
@@ -225,7 +226,15 @@ bool Repomanager::baixar(const std::string& url, const std::string& destino, boo
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-    
+    //Verificação SSL customizada
+    curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, &tools);
+    curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, sslctx_function_adapter);
+
+    //seguir redirecionamentos
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    //Cabeçalho User-Agent
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "APKM-Manager/1.0");
+
     // Timeout: não fica esperando para sempre (ex: 30s para conectar)
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
 
@@ -238,6 +247,11 @@ bool Repomanager::baixar(const std::string& url, const std::string& destino, boo
 
     CURLcode res = curl_easy_perform(curl);
     fclose(fp);
+
+    if (mostrarProgresso) {
+        // \r volta ao início, imprime espaços para limpar a linha e \r volta de novo
+        std::cout << "\r" << std::string(80, ' ') << "\r" << std::flush;
+    }
 
     if (res != CURLE_OK) {
         // Se falhou, remove o arquivo incompleto/corrompido
@@ -330,7 +344,10 @@ int Repomanager::verify_callback(X509_STORE_CTX* ctx, void* arg) {
                 return 1;
             }
         default:
-            if(compareHashes(tool->repoconfig->pinned_hashes, dominioHashs)){
+            if(!tool->configs->ssl){
+                tool->repoconfig->valido=true;
+                return 1;
+            }else if(compareHashes(tool->repoconfig->pinned_hashes, dominioHashs)){
                 tool->repoconfig->valido=true;
                 return 1;
             }    
@@ -460,6 +477,5 @@ int Repomanager::progress_callback(void* clientp, curl_off_t dltotal, curl_off_t
         else std::cout << "-";
     }
     std::cout << "] " << std::fixed << std::setprecision(1) << percentage << "%" << std::flush;
-
     return 0; // Retorne 0 para continuar o download, ou 1 para abortar
 }

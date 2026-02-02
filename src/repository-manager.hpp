@@ -25,7 +25,7 @@ public:
     bool adicionarRepositório();
     bool removerRepositório();
     bool listarRepositórios();
-    bool baixar(const std::string& url, const std::string& destino, bool mostrarProgresso);
+    bool baixarApk(const std::string& url, const std::string& destino, bool mostrarProgresso, RemoteRepoConfig* repoConfig);
 private:
     static void save_or_update(RepoConfig* myConfig);
     std::string sources_dir(std::string sourcename);

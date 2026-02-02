@@ -29,6 +29,9 @@ struct Strings {
     std::vector<std::string> ERRO_INSTALAR;
     std::vector<std::string> ERRO_BAIXAR;
     std::vector<std::string> PACOTE_N_ENCONTRADO;
+    std::vector<std::string> DESINSTALADO;
+    std::vector<std::string> ERRO_DESINSTALAR;
+    std::vector<std::string> DESINSTALANDO;
 
     Strings(std::vector<std::vector<std::string>> textos);
     static Strings* obterStrings();

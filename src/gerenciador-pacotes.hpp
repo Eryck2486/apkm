@@ -12,5 +12,9 @@ public:
     Repomanager* repomanager;
     bool pesquisar();
     bool instalarPacotes();
+    bool desinstalarPacotes();
+    static bool VerificarIntegridadePacote(std::string arquivoPath, std::string expectedMd5);
+    static std::string calcularHashArquivo(const std::string& caminho, const EVP_MD* algoritmo);
+    bool verificarApk(std::filesystem::path apkPath, DadosPacote* pacote);
 private:
 };

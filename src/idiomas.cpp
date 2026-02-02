@@ -32,6 +32,9 @@ Strings::Strings(std::vector<std::vector<std::string>> textos){
     ERRO_INSTALAR=textos[22];
     ERRO_BAIXAR=textos[23];
     PACOTE_N_ENCONTRADO=textos[24];
+    DESINSTALADO=textos[25];
+    ERRO_DESINSTALAR=textos[26];
+    DESINSTALANDO=textos[27];
 }
 
 Strings* Strings::obterStrings(){
@@ -84,7 +87,10 @@ Strings* Strings::obterStrings(){
                 {/*INSTALADO*/"App \"","\" instalado com sucesso."},
                 {/*ERRO_INSTALAR*/"Erro ao instalar o app \"", "\"."},
                 {/*ERRO_BAIXAR*/"Erro ao baixar o app \"", "\"."},
-                {/*PACOTE_N_ENCONTRADO*/"O pacote \"", "\" não foi encontrado em nenhum repositório disponível."}
+                {/*PACOTE_N_ENCONTRADO*/"O pacote \"", "\" não foi encontrado em nenhum repositório disponível."},
+                {/*DESINSTALADO*/"App \"","\" desinstalado com sucesso."},
+                {/*ERRO_DESINSTALAR*/"Erro ao desinstalar o app \"", "\"."},
+                {/*DESINSTALANDO*/"Desinstalando pacote "}
             }
         );
     }

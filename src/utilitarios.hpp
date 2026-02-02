@@ -31,7 +31,7 @@ struct DadosPacote
     std::string nome;
     std::string descrição;
     std::string versão;
-    std::string md5sum;
+    std::string sha256sum;
     std::string endereço;
     std::string arquitetura;
     DadosPacote(std::string raizrepo, std::vector<std::string> dados);
@@ -40,6 +40,8 @@ struct DadosPacote
 //Estrutura que representa o index.json retornado pelo servidor
 struct RemoteRepoConfig
 {
+    //Armazenando ponteiro para configuração local do repositório (Utilizado para verificaçao de hashes)
+    RepoConfig* repoConfig;
     //construtor que recebe url e retorna os dados do repositório
     static RemoteRepoConfig* fromJson(std::string jsonstring);
 

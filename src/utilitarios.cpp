@@ -35,15 +35,19 @@ DadosPacote::DadosPacote(string raizrepo, vector<string> dados){
     this->nome=dados[1];
     this->descrição=dados[2];
     this->versão=dados[3];
-    this->md5sum=dados[4];
+    this->sha256sum=dados[4];
     string enderecoCompleto = dados[5];
-    if(enderecoCompleto.find("https://") != std::string::npos){
-        this->endereço=enderecoCompleto;
+    if(!enderecoCompleto.empty()){
+        if(enderecoCompleto.find("https://") != std::string::npos){
+            this->endereço=enderecoCompleto;
+        }else{
+            this->endereço=raizrepo+enderecoCompleto;
+        }
     }else{
-        this->endereço=raizrepo+enderecoCompleto;
+        this->endereço="ERRO_NO_ADDRESS_PROVIDED";
     }
     //Depurando, remover depois
-    cout << "Endereço do pacote " << this->pacote << ": " << dados[5] << endl;
+    cout << "Endereço do pacote " << this->pacote << ": " << this->endereço << endl;
     this->arquitetura=dados[6];
 }
 
@@ -60,17 +64,8 @@ RemoteRepoConfig* RemoteRepoConfig::fromJson(std::string jsonstring) {
         if (j.contains("packages") && j["packages"].is_array()) {
             for (const auto& item : j["packages"]) {
                 if (item.is_array()) {
-                    std::vector<std::string> lista_strings;
-                    for (const auto& campo : item) {
-                        // dump( ) garante que o valor vire string, ou .get<std::string>() se tiver certeza
-                        if (campo.is_string()) {
-                            lista_strings.push_back(campo.get<std::string>());
-                        } else {
-                            // Converte números ou outros tipos para string automaticamente
-                            lista_strings.push_back(campo.dump()); 
-                        }
-                    }
-                    r->pacotes.push_back(new DadosPacote(r->repository_sources_path, lista_strings));
+                    // Aqui você chama o seu construtor de DadosPacote
+                    r->pacotes.push_back(new DadosPacote(r->repository_sources_path, item.get<std::vector<std::string>>()));
                 }
             }
         }
@@ -172,7 +167,7 @@ Config::Config(int argc, char* argv[]){
         switch(instrução){
             case 1:
             {
-
+                //Nenhum argumento adicional esperado
             }
             break;
             case 2:
@@ -180,13 +175,8 @@ Config::Config(int argc, char* argv[]){
                 url=argstr;
             }
             break;
-            case 3:
-            {
-                nomes.push_back(argstr);
-            }
-            break;
             case 4:
-            {
+            {//A seleção entre listar repositórios ou addons acontece aqui
                 if(argstr=="repos")
                 {
                     instrução=4;
@@ -195,12 +185,7 @@ Config::Config(int argc, char* argv[]){
                 }
             }
             break;
-            case 6:
-            {
-                nomes.push_back(argstr);
-            }
-            break;
-            case 7:
+            case 3:case 6: case 7: case 8:
             {
                 nomes.push_back(argstr);
             }
@@ -213,12 +198,14 @@ Config::Config(int argc, char* argv[]){
                     instrução=2;
                 }else if(argstr=="--rm-repo"){
                     instrução=3;
-                }else if(argstr=="--list"){
+                }else if(argstr=="--list"){ //Inclue opção para addons e repositórios
                     instrução=4;
                 }else if(argstr=="search"){
                     instrução=6;
                 }else if(argstr=="install"){
                     instrução=7;
+                }else if(argstr=="uninstall"){
+                    instrução=8;
                 }else{
                     comandoInvalido=argstr;
                 }
@@ -233,7 +220,13 @@ Config::~Config() {
         curl = nullptr;
     }
     for(AddOn* addon : addonsdinamicos) delete(addon);
-    for(RemoteRepoConfig* config : reposglobais) delete(config);
+    for(RemoteRepoConfig* config : reposglobais) {
+        for(DadosPacote* pacote : config->pacotes) {
+            delete(pacote);
+        }
+        delete(config->repoConfig);
+        delete(config);
+    }
 }
 
 //Mostra as configurações da execução
