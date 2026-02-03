@@ -5,7 +5,7 @@
 #include <vector>
 #include <openssl/types.h>
 #include <nlohmann/json.hpp>
-#include "utilitarios.hpp"
+#include "apkm.hpp"
 
 using json = nlohmann::json;
 // Forward declarations
@@ -25,7 +25,7 @@ public:
     bool adicionarRepositório();
     bool removerRepositório();
     bool listarRepositórios();
-    bool baixarApk(const std::string& url, const std::string& destino, bool mostrarProgresso, RemoteRepoConfig* repoConfig);
+    bool baixarArquivo(const std::string& url, const std::string& destino, bool mostrarProgresso, Tools& tools);
 private:
     static void save_or_update(RepoConfig* myConfig);
     std::string sources_dir(std::string sourcename);
@@ -37,7 +37,7 @@ private:
     static bool compareHashes(std::vector<std::string> dominioHashs, std::vector<std::string> hashesLocais);
     static std::vector<std::string> GetHashs(Tools* tool, X509_STORE_CTX* ctx);
     static int verificar_dominio(X509* cert, const std::string& hostname);
-    static bool is_valid_now(X509* cert, RepoConfig& config);
+    static bool is_valid_now(X509* cert, Tools& tool);
     static std::string gethostname(std::string url);
     static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
 };

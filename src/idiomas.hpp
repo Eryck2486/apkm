@@ -1,38 +1,50 @@
 #pragma once
 #include <string>
-#include "utilitarios.hpp"
+#include "apkm.hpp"
 #include <vector>
+#include <unordered_map>
+#include <nlohmann/json.hpp>
 
+struct Config; 
 struct Strings {
-    std::vector<std::string> CARREGANDO_REPOSITORIOS;
-    std::vector<std::string> ERRO_REPOS_N_ENCONTRADOS;
-    std::vector<std::string> SIM;
-    std::vector<std::string> NAO;
-    std::vector<std::string> USANDO_SSL;
-    std::vector<std::string> ERRO_OBTER_CERTIFICADO;
-    std::vector<std::string> CERT_NAO_CONFIAVEL;
-    std::vector<std::string> ERRO_HASHS_DESCONHECIDOS;
-    std::vector<std::string> VERIFICANDO_REPOSITORIO;
-    std::vector<std::string> PRONTO;
-    std::vector<std::string> ERRO_COM_INVALIDO;
-    std::vector<std::string> AJUDA;
-    std::vector<std::string> REPOSITORIO_INVALIDO;
-    std::vector<std::string> ADICIONANDO_REPOSITÒRIOS;
-    std::vector<std::string> REPOSITORIO_ADICIONADO;
-    std::vector<std::string> REPOSITORIO_REMOVIDO;
-    std::vector<std::string> REPOSITORIO_N_ENCONTRADO;
-    std::vector<std::string> NENHUM_REPO_ENCONTRADO;
-    std::vector<std::string> MOSTR_RESULTS;
-    std::vector<std::string> BAIXANDO;
-    std::vector<std::string> INSTALANDO;
-    std::vector<std::string> INSTALADO;
-    std::vector<std::string> ERRO_INSTALAR;
-    std::vector<std::string> ERRO_BAIXAR;
-    std::vector<std::string> PACOTE_N_ENCONTRADO;
-    std::vector<std::string> DESINSTALADO;
-    std::vector<std::string> ERRO_DESINSTALAR;
-    std::vector<std::string> DESINSTALANDO;
+    std::unordered_map<std::string, std::string> permissõesTexto;
+    std::vector<std::string>
+    //Definindo variáveis para suporte a diferentes idiomas:
+    CARREGANDO_REPOSITORIOS,
+    ERRO_REPOS_N_ENCONTRADOS,
+    SIM,
+    NAO,
+    USANDO_SSL,
+    ERRO_OBTER_CERTIFICADO,
+    CERT_NAO_CONFIAVEL,
+    ERRO_HASHS_DESCONHECIDOS,
+    VERIFICANDO_REPOSITORIO,
+    PRONTO,
+    ERRO_COM_INVALIDO,
+    AJUDA,
+    REPOSITORIO_INVALIDO,
+    ADICIONANDO_REPOSITÒRIOS,
+    REPOSITORIO_ADICIONADO,
+    REPOSITORIO_REMOVIDO,
+    REPOSITORIO_N_ENCONTRADO,
+    NENHUM_REPO_ENCONTRADO,
+    MOSTR_RESULTS,
+    BAIXANDO,
+    INSTALANDO,
+    INSTALADO,
+    ERRO_INSTALAR,
+    ERRO_BAIXAR,
+    PACOTE_N_ENCONTRADO,
+    DESINSTALADO,
+    ERRO_DESINSTALAR,
+    DESINSTALANDO,
+    QUEST_INSTALAR_APP,
+    PERMISS_REQUERIDAS,
+    INSTAL_CANCELADA,
+    ADDON_INFOS,
+    DADOS_PACOTE,
+    PAC_INCOMPATIVEL;
 
-    Strings(std::vector<std::vector<std::string>> textos);
-    static Strings* obterStrings();
+    Strings(Config* config);
+    std::string obterPermissãoTexto(std::string perm);
 };

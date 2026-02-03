@@ -8,7 +8,7 @@
 #include <string>
 #include <iomanip>
 #include <sstream>
-#include "repository-manager.hpp"
+#include "repository_manager.hpp"
 #include <filesystem>
 #include <queue>
 #include <chrono>
@@ -17,6 +17,7 @@
 
 using namespace std;
 using json = nlohmann::json;
+using namespace Utilitarios;
 
 Repomanager::Repomanager(Config* config)
 {
@@ -31,14 +32,30 @@ vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
     //Carregando repositórios do "disco"
     vector<RepoConfig*> reposlocais = CarregarRepositóriosLocais(configs);
     for(RepoConfig* repo : reposlocais){
-        Tools tool = Tools(repo, configs);
+        Tools tool = Tools(repo->pinned_hashes, repo->url, configs, configs->ssl);
+        if(terminalColor()){
+            cout << BOLDBLUE << repo->name << " (" << repo->url << "): " << RESET;
+        }else{
+            cout << repo->name << " (" << repo->url << "): ";
+        }
         if(validar(tool)){
-            RemoteRepoConfig* serverRepo = RemoteRepoConfig::fromJson(tool.serverResponse);
-            serverRepo->repoConfig=repo;
-            filesystem::path origem = repo->filepath;
-            serverRepo->origem=origem.filename();
-            if(serverRepo){
-                reposglobais.push_back(serverRepo);
+        RemoteRepoConfig* serverRepo = RemoteRepoConfig::fromJson(tool.serverResponse);
+        serverRepo->pinned_hashes=repo->pinned_hashes;
+        filesystem::path origem = repo->filepath;
+        serverRepo->origem=origem.filename();
+        if(serverRepo){
+            reposglobais.push_back(serverRepo);
+            if(terminalColor()){
+                cout << BOLDGREEN << "Ok." << RESET << endl;
+            }else{
+                cout << "Ok." << endl;
+            }
+        }
+        }else{
+            if(terminalColor()){
+                cout << BOLDRED << "ERR." << RESET << endl;
+            }else{
+                cout << "ERR." << endl;
             }
         }
     }
@@ -48,7 +65,10 @@ vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
         if(addon->config->dinamico){
             configs->addonsdinamicos.push_back(addon);
         }else{
-            reposglobais.push_back(addon->getRepo());
+            for(RemoteRepoConfig* repo : addon->getRepos()){
+                reposglobais.push_back(repo);
+            }
+            delete(addon);
         }
     }
 
@@ -103,7 +123,7 @@ bool Repomanager::validar(Tools& tools) {
 
     // 2. Garante que a string de resposta esteja vazia
     tools.serverResponse = "";
-    tools.repoconfig->valido = false;
+    tools.linkVálido = false;
 
     long http_code = 0;
 
@@ -111,7 +131,7 @@ bool Repomanager::validar(Tools& tools) {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_null_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &tools.serverResponse);
     
-    std::string full_url = tools.repoconfig->url + "/index.json";
+    std::string full_url = tools.url + "/index.json";
     curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
     
     curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, &tools);
@@ -128,20 +148,20 @@ bool Repomanager::validar(Tools& tools) {
     CURLcode res = curl_easy_perform(curl);
     
     if (res != CURLE_OK) {
-        tools.repoconfig->errMsg = curl_easy_strerror(res);
+        tools.errorMsg = curl_easy_strerror(res);
         return false;
     }
 
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     
-    if (tools.repoconfig->valido && http_code >= 200 && http_code < 300) {
+    if (tools.linkVálido && http_code >= 200 && http_code < 300) {
         return true;
     }
 
     // Se chegou aqui, deu erro
     if (http_code != 200) {
         cout << http_code << "." << endl;
-        tools.repoconfig->errMsg = tools.configs->stringsidioma->REPOSITORIO_INVALIDO[0];
+        tools.errorMsg = tools.configs->stringsidioma->REPOSITORIO_INVALIDO[0];
     }
     return false;
 }
@@ -152,7 +172,7 @@ bool Repomanager::adicionarRepositório(){
         true,
         configs->url
     );
-    Tools tool = Tools(repoconfig, configs);
+    Tools tool = Tools(repoconfig->pinned_hashes, configs->url, configs, configs->ssl);
     cout << configs->stringsidioma->VERIFICANDO_REPOSITORIO[0]+configs->url+": ";
     if(validar(tool)){
         cout << configs->stringsidioma->PRONTO[0] << endl;
@@ -177,6 +197,8 @@ bool Repomanager::adicionarRepositório(){
     return false;
 }
 
+
+//Remove o repositório
 bool Repomanager::removerRepositório(){
     vector<RepoConfig*> repos = CarregarRepositóriosLocais(configs);
     for(string nome : configs->nomes){
@@ -201,6 +223,7 @@ bool Repomanager::removerRepositório(){
     return true;
 }
 
+//Lista os repositórios disponíveis (Incluindo repositórios de AddOns estáticos)
 bool Repomanager::listarRepositórios(){
     vector<RemoteRepoConfig*> repos = configs->reposglobais;
     if(repos.size()>0){
@@ -214,10 +237,10 @@ bool Repomanager::listarRepositórios(){
     return true;
 }
 
-bool Repomanager::baixarApk(const std::string& url, const std::string& destino, bool mostrarProgresso, RemoteRepoConfig* repoConfig) {
+//Baixa um arquivo de uma URL para o destino especificado (Requer validação SSL)
+bool Repomanager::baixarArquivo(const std::string& url, const std::string& destino, bool mostrarProgresso, Tools& tools) {
     CURL* curl = configs->curl;
     if (!curl) return false;
-    Tools tools = Tools(repoConfig->repoConfig, configs);
     curl_easy_reset(curl);
     FILE* fp = fopen(destino.c_str(), "wb");
     if (!fp) return false;
@@ -321,38 +344,36 @@ int Repomanager::verify_callback(X509_STORE_CTX* ctx, void* arg) {
     {
         case 1:
             {
-                if(tool->configs->ssl && compareHashes(dominioHashs, tool->repoconfig->pinned_hashes)){
-                    tool->repoconfig->pinned_hashes.clear();
-                    tool->repoconfig->pinned_hashes=dominioHashs;
-                    tool->repoconfig->valido=true;
-                    cout << "At" << endl;
+                if(tool->usarSSL && compareHashes(dominioHashs, tool->certificadoHashs)){
+                    tool->certificadoHashs.clear();
+                    tool->certificadoHashs=dominioHashs;
+                    tool->linkVálido=true;
                     return 1;
                 }else if(!tool->configs->ssl){
-                    tool->repoconfig->pinned_hashes.clear();
-                    tool->repoconfig->pinned_hashes=dominioHashs;
-                    tool->repoconfig->valido=true;
-                    cout << "At" << endl;
+                    tool->certificadoHashs.clear();
+                    tool->certificadoHashs=dominioHashs;
+                    tool->linkVálido=true;
                     return 1;
                 }
-                tool->repoconfig->errMsg = tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[0]+"\""+tool->configs->nomebinario+" --remove "+tool->repoconfig->name+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[1]+"\""+tool->configs->nomebinario+" --update "+tool->repoconfig->name+" --no-ssl"+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[2];
+                tool->errorMsg = tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[0]+"\""+tool->configs->nomebinario+" --remove "+tool->toolname+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[1]+"\""+tool->configs->nomebinario+" --update "+tool->toolname+" --no-ssl"+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[2];
             }
         case 2:
             {
-                tool->repoconfig->pinned_hashes.clear();
-                tool->repoconfig->pinned_hashes=dominioHashs;
-                tool->repoconfig->valido=true;
+                tool->certificadoHashs.clear();
+                tool->certificadoHashs=dominioHashs;
+                tool->linkVálido=true;
                 return 1;
             }
         default:
-            if(!tool->configs->ssl){
-                tool->repoconfig->valido=true;
+            if(!tool->usarSSL){
+                tool->linkVálido=true;
                 return 1;
-            }else if(compareHashes(tool->repoconfig->pinned_hashes, dominioHashs)){
-                tool->repoconfig->valido=true;
+            }else if(compareHashes(tool->certificadoHashs, dominioHashs)){
+                tool->linkVálido=true;
                 return 1;
             }    
     }
-    tool->repoconfig->valido = false;
+    tool->errorMsg = tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[0]+"\""+tool->configs->nomebinario+" --remove "+tool->toolname+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[1]+"\""+tool->configs->nomebinario+" --update "+tool->toolname+" --no-ssl"+"\""+tool->configs->stringsidioma->ERRO_HASHS_DESCONHECIDOS[2];
     return 0; // Bloqueia a conexão
 }
 
@@ -390,7 +411,7 @@ vector<string> Repomanager::GetHashs(Tools* tool, X509_STORE_CTX* ctx){
         unsigned char hash[SHA256_DIGEST_LENGTH];
         unsigned int hash_len = 0;
         if (X509_digest(cert, EVP_sha256(), hash, &hash_len)) {
-            if(verificar_dominio(cert, gethostname(tool->repoconfig->url)) && is_valid_now(cert, *tool->repoconfig)) dominioCertificado=true;
+            if(verificar_dominio(cert, gethostname(tool->url)) && is_valid_now(cert, *tool)) dominioCertificado=true;
             std::string current_hash = digestToHex(hash, hash_len);
             hashes.push_back(current_hash);
         }
@@ -410,18 +431,18 @@ int Repomanager::verificar_dominio(X509* cert, const std::string& hostname) {
 }
 
 //Verifica se a data de validade do certificado é válida se comparada com a data do sistema
-bool Repomanager::is_valid_now(X509* cert, RepoConfig& config) {
+bool Repomanager::is_valid_now(X509* cert, Tools& tool) {
     // > 0 se o tempo do cert é POSTERIOR ao tempo fornecido
     if (X509_cmp_time(X509_get0_notBefore(cert), NULL) > 0) {
         // O certificado só será válido no futuro
-        config.errMsg="|->[SSL_ERR_43: A data de validade do certificado ainda não é válida.\n]";
+        tool.errorMsg="|->[SSL_ERR_43: A data de validade do certificado ainda não é válida.\n]";
         return false;
     }
 
     //Verificar se o certificado já expirou (Not After)
     if (X509_cmp_time(X509_get0_notAfter(cert), NULL) < 0) {
         // O tempo atual já passou da data de expiração
-        config.errMsg="|->[SSL_ERR_45: A data de validade do certificado expirou.\n]";
+        tool.errorMsg="|->[SSL_ERR_45: A data de validade do certificado expirou.\n]";
         return false;
     }
 
@@ -466,7 +487,7 @@ int Repomanager::progress_callback(void* clientp, curl_off_t dltotal, curl_off_t
 
     // Calcula a porcentagem
     double percentage = (double)dlnow / (double)dltotal * 100.0;
-    int width = 30; // Largura da barra em caracteres
+    int width = Utilitarios::obterLarguraTerminal() - 9; // Largura da barra em caracteres
     int pos = width * (percentage / 100.0);
 
     // Desenha a barra no terminal

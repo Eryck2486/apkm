@@ -1,4 +1,9 @@
 tools/
-include/
+include/build
+include/curl
+include/json
+include/libzip
+include/openssl
+
 build/
 .vscode/

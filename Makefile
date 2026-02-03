@@ -64,10 +64,10 @@ CXXFLAGS = \
 
 TARGET = build/apkm
 SRCS = $(SRCPATH)/main.cpp \
-	$(SRCPATH)/repository-manager.cpp \
+	$(SRCPATH)/repository_manager.cpp \
 	$(SRCPATH)/idiomas.cpp \
-	$(SRCPATH)/utilitarios.cpp \
-	$(SRCPATH)/gerenciador-pacotes.cpp
+	$(SRCPATH)/apkm.cpp \
+	$(SRCPATH)/gerenciador_pacotes.cpp
 
 EXARGS=include/curl/lib/.libs/libcurl.a include/openssl/libssl.a include/openssl/libcrypto.a include/libzip/lib/libzip.a -static-libstdc++ -lz
 RM = rm -f

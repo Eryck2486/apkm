@@ -1,7 +1,7 @@
 #include <iostream> // Para std::cout
 #include <curl/curl.h>
-#include "utilitarios.hpp"
-#include "repository-manager.hpp"
+#include "apkm.hpp"
+#include "repository_manager.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -11,9 +11,10 @@
 #include <iomanip>
 #include "main.hpp"
 #include "idiomas.hpp"
-#include "gerenciador-pacotes.hpp"
+#include "gerenciador_pacotes.hpp"
 
 using namespace std;
+using namespace Utilitarios;
 
 int Main::main(int argc, char* argv[]) {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -46,12 +47,11 @@ int Main::main(int argc, char* argv[]) {
                 retorno = 0;
                 break;
             case 6:
-                if(gerenciador->pesquisar()){
-                    retorno = 0;
-                }
+                gerenciador->pesquisar();
+                retorno = 0;
                 break;
             case 7:
-                if(gerenciador->instalarPacotes()){
+                if(gerenciador->prepararInstalarPacotes()){
                     retorno = 0;
                 }
                 break;
@@ -78,7 +78,7 @@ void Main::printhelp(Config* conf){
         cout << idioma->ERRO_COM_INVALIDO[0] << conf->comandoInvalido << idioma->ERRO_COM_INVALIDO[1];
     }
     string ajudastr = idioma->AJUDA[0];
-    Utilitarios::stringReplace(&ajudastr, "$$BIN", conf->nomebinario);
+    stringReplace(&ajudastr, "$$BIN", conf->nomebinario);
     cout << ajudastr;
 }
 
