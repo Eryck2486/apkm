@@ -1,0 +1,6 @@
+id=apkm_manager
+name=APKM - Android Package Manager
+version=v1.0-beta
+versionCode=1
+author=Eryck
+description=Gerenciador de pacotes completo para Android

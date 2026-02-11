@@ -57,6 +57,7 @@ Strings::Strings(Config* config){
         ADDON_INFOS = stringsJson["ADDON_INFOS"].get<std::vector<std::string>>();
         DADOS_PACOTE = stringsJson["DADOS_PACOTE"].get<std::vector<std::string>>();
         PAC_INCOMPATIVEL = stringsJson["PAC_INCOMPATIVEL"].get<std::vector<std::string>>();
+        ERR_NO_REPOS = stringsJson["ERR_NO_REPOS"].get<std::vector<std::string>>();
         
         auto permissoesJson = j["permissoes_texto"];
         for (auto& [key, value] : permissoesJson.items()) {

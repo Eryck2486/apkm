@@ -1,4 +1,5 @@
 #include "gerenciador_pacotes.hpp"
+#include "apkm_packages_manager.hpp"
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -9,6 +10,9 @@
 #include <openssl/evp.h>
 #include <fstream>
 #include <lib/zip.h>
+#include <thread>
+#include <unordered_map>
+#include <regex>
 using namespace std;
 using namespace Utilitarios;
 
@@ -36,6 +40,7 @@ void GerenciadorPacotes::pesquisar(){
         }
     }
 
+    //Mostra os resultados dos repositórios
     if(resultados.size()>0){
         cout << configs->stringsidioma->MOSTR_RESULTS[0] << pesqcmresult << endl;
         mostrarListaResultados(resultados, configs);
@@ -49,47 +54,61 @@ void GerenciadorPacotes::pesquisar(){
             }else pesquisaTermo.append(','+pesquisa);
         }
         vector<DadosPacote*> pacotes = addon->Buscar(pesquisaTermo);
-        cout << pacotes.size() << " resultados em " << addon->config->nome << "." << endl;
-        mostrarListaResultados(pacotes, configs);
+        vector<DadosPacote*> pacotesFiltrados = vector<DadosPacote*>();
+        //Filtra os pacotes para exibir somente os compatíveis
+        if(configs->exibirIncompatíveis){
+            pacotesFiltrados=pacotes;
+        }else for(DadosPacote* pacote : addon->Buscar(pesquisaTermo)){
+            if(checarCompatibilidade(pacote->arquiteturas)){
+                pacotesFiltrados.push_back(pacote);
+            }
+        }
+        if(pacotes.size()>0) mostrarListaResultados(pacotesFiltrados, configs);
     }
 }
 
 void GerenciadorPacotes::mostrarListaResultados(vector<DadosPacote*> pacotes, Config* configs){
     for(DadosPacote* pacote : pacotes){
-        cout << gerarLinhaSeparadora() << endl;
-        vector<string>* DADOS_PACOTE = &configs->stringsidioma->DADOS_PACOTE;
-        if(configs->terminalColor){
-            cout << BOLDCYAN << (*DADOS_PACOTE)[0] << BOLDGREEN << pacote->pacote << RESET;
-            if(!checarCompatibilidade(pacote->arquiteturas)){
-                string listaArchs;
-                for(string arch : pacote->arquiteturas){
-                    if(listaArchs==""){
-                        listaArchs=arch;
-                    }else listaArchs.append("/"+arch);
-                }
-                cout << " " << BOLDRED << configs->stringsidioma->PAC_INCOMPATIVEL[0] << listaArchs << configs->stringsidioma->PAC_INCOMPATIVEL[1] << RESET << endl;
-            }else{
-                cout << endl;
-            }
-            NLINDINFO((*DADOS_PACOTE)[1]+pacote->nome);
-            NLINDINFO((*DADOS_PACOTE)[2]+pacote->descrição);
-            NLINDINFO((*DADOS_PACOTE)[3]+pacote->origem);
+        if(configs->formatoJSON){
+            cout << pacote->toJson() << endl;
         }else{
-            cout << (*DADOS_PACOTE)[0] << pacote->pacote << endl;
-            if(!checarCompatibilidade(pacote->arquiteturas)){
-                string listaArchs;
-                for(string arch : pacote->arquiteturas){
-                    if(listaArchs==""){
-                        listaArchs=arch;
-                    }else listaArchs.append("/"+arch);
+            cout << gerarLinhaSeparadora() << endl;
+            vector<string>* DADOS_PACOTE = &configs->stringsidioma->DADOS_PACOTE;
+            if(configs->terminalColor){
+                cout << BOLDCYAN << (*DADOS_PACOTE)[0] << BOLDGREEN << pacote->pacote << RESET;
+                if(!checarCompatibilidade(pacote->arquiteturas)){
+                    string listaArchs;
+                    for(string arch : pacote->arquiteturas){
+                        if(listaArchs==""){
+                            listaArchs=arch;
+                        }else listaArchs.append("/"+arch);
+                    }
+                    cout << " " << BOLDRED << configs->stringsidioma->PAC_INCOMPATIVEL[0] << listaArchs << configs->stringsidioma->PAC_INCOMPATIVEL[1] << RESET << endl;
+                }else{
+                    cout << endl;
                 }
-                cout << " " << configs->stringsidioma->PAC_INCOMPATIVEL[0] << listaArchs << configs->stringsidioma->PAC_INCOMPATIVEL[1] << endl;
+                NLINDINFO((*DADOS_PACOTE)[1]+pacote->nome);
+                NLINDINFO((*DADOS_PACOTE)[2]+pacote->descrição);
+                NLINDINFO((*DADOS_PACOTE)[3]+pacote->versão);
+                NLINDINFO((*DADOS_PACOTE)[4]+pacote->origem);
             }else{
-                cout << endl;
+                cout << (*DADOS_PACOTE)[0] << pacote->pacote << endl;
+                if(!checarCompatibilidade(pacote->arquiteturas)){
+                    string listaArchs;
+                    for(string arch : pacote->arquiteturas){
+                        if(listaArchs==""){
+                            listaArchs=arch;
+                        }else listaArchs.append("/"+arch);
+                    }
+                    cout << " " << configs->stringsidioma->PAC_INCOMPATIVEL[0] << listaArchs << configs->stringsidioma->PAC_INCOMPATIVEL[1] << endl;
+                }else{
+                    cout << endl;
+                }
+                NCNLINDINFO((*DADOS_PACOTE)[1]+pacote->nome);
+                NCNLINDINFO((*DADOS_PACOTE)[2]+pacote->descrição);
+                NCNLINDINFO((*DADOS_PACOTE)[3]+pacote->versão);
+                NCNLINDINFO((*DADOS_PACOTE)[4]+pacote->origem);
             }
-            NCNLINDINFO((*DADOS_PACOTE)[1]+pacote->nome);
-            NCNLINDINFO((*DADOS_PACOTE)[2]+pacote->descrição);
-            NCNLINDINFO((*DADOS_PACOTE)[3]+pacote->origem);
         }
     }
     cout << endl;
@@ -99,84 +118,66 @@ void GerenciadorPacotes::mostrarListaResultados(vector<DadosPacote*> pacotes, Co
 bool GerenciadorPacotes::prepararInstalarPacotes(){
     for(string pacoteNome : configs->nomes){
         bool encontrado = false;
-        for(RemoteRepoConfig* repoconfig : configs->reposglobais){
-            for(DadosPacote* pacote : repoconfig->pacotes){
-                if(pacote->pacote==pacoteNome){
-                    if(instalarPacote(pacote, repoconfig))
-                    encontrado=true;
+        if(pacoteNome.find(":") == std::string::npos){
+            for(RemoteRepoConfig* repoconfig : configs->reposglobais){
+                for(DadosPacote* pacote : repoconfig->pacotes){
+                    if(pacote->pacote==pacoteNome){
+                        if(instalarPacote(pacote, repoconfig))
+                        encontrado=true;
+                    }
+                }
+            }
+            if(!encontrado){
+                if(configs->formatoJSON){
+                    cout << "{\"status\":\"fail\", \"message\":\"Package not found: "+pacoteNome+"\"}" << endl;
+                }else{
+                    cerr << configs->stringsidioma->PACOTE_N_ENCONTRADO[0] << pacoteNome << configs->stringsidioma->PACOTE_N_ENCONTRADO[1] << endl;
+                }
+            }
+        }else{
+            //Testando busca de prefixo de AddOn
+            vector<string> pacoteData = stringSplit(&pacoteNome, ':');
+            string addonPrefix = pacoteData[0];
+            string pacoteNome = pacoteData[1];
+            for(AddOn* addon : configs->addonsdinamicos){
+                if(addon->config->prefix==addonPrefix){
+                    vector<string> pacoteLocal = addon->getPackage(pacoteNome);
+                    //Movendo APK para pasta temporária e instalando
+                    filesystem::path tempPath = obterPastaTemporaria()+"/"+pacoteNome+".apk";
+                    if(filesystem::exists(tempPath)){
+                        filesystem::remove(tempPath);
+                    }
+                    filesystem::copy_file(pacoteLocal[0], tempPath);
+                    pacoteLocal[0]=tempPath;
+                    if(pacoteLocal.size()>0 && apkInstaller(pacoteLocal[0], pacoteLocal[1], configs)){
+                        encontrado=true;
+                    }
                 }
             }
         }
-        if(!encontrado)
-        for(AddOn* addon : configs->addonsdinamicos){
-            RemoteRepoConfig* repoconfig = addon->ObterPacote(pacoteNome);
-            if(repoconfig && instalarPacote(repoconfig->pacotes[0], repoconfig)){
-                encontrado=true;
-            }
-        }
         if(!encontrado){
-            cerr << configs->stringsidioma->PACOTE_N_ENCONTRADO[0] << pacoteNome << configs->stringsidioma->PACOTE_N_ENCONTRADO[1] << endl;
+            if(configs->formatoJSON){
+                cout << "{\"status\":\"fail\", \"message\":\"Package not found: "+pacoteNome+"\"}" << endl;
+            }else{
+                cerr << configs->stringsidioma->PACOTE_N_ENCONTRADO[0];
+                cerr << pacoteNome;
+                cerr << configs->stringsidioma->PACOTE_N_ENCONTRADO[1] << endl;
+            }
         }
     }
     return true;
 }
 
 bool GerenciadorPacotes::instalarPacote(DadosPacote* pacote, RemoteRepoConfig* repoconfig){
-    cout << configs->stringsidioma->BAIXANDO[0] << pacote->nome << "..." << endl;
+    if(!configs->formatoJSON) cout << configs->stringsidioma->BAIXANDO[0] << pacote->nome << "..." << endl;
     string tempPath = obterPastaTemporaria()+"/downloading";
     filesystem::remove_all(tempPath);
     filesystem::create_directories(tempPath);
     string tempFile = tempPath+"/"+pacote->pacote+".apk";
     Tools tools = Tools(repoconfig->pinned_hashes, pacote->endereço, configs, configs->ssl);
     if(repomanager->baixarArquivo(pacote->endereço, tempFile, true, tools)){
-        APKManifesto* manifesto = verificarApk(tempFile, pacote);
         if(GerenciadorPacotes::VerificarIntegridadePacote(tempFile, pacote->sha256sum)){
-            if( manifesto==nullptr || !manifesto->manifestoValido ){
-                NLINDERR(configs->stringsidioma->ERRO_INSTALAR[0]+pacote->nome+" (APK verification failed)"+configs->stringsidioma->ERRO_INSTALAR[1]);
-                filesystem::remove_all(tempPath);
-                delete manifesto;
-                return false;
-            }
-
-            //Exibindo permissões do APK
-            bool instalarApp = false;
-            if(!configs->assumirSim){
-                NLIND(configs->stringsidioma->QUEST_INSTALAR_APP[0]+pacote->nome+configs->stringsidioma->QUEST_INSTALAR_APP[1]);
-                if(manifesto->permissions.size()>0){
-                    NLIND(configs->stringsidioma->PERMISS_REQUERIDAS[0]);
-                    cout << gerarLinhaSeparadora() << endl;
-                    for(string perm : manifesto->permissions){
-                        NLINDINFO(" - "+configs->stringsidioma->obterPermissãoTexto(perm));
-                    }
-                    cout << gerarLinhaSeparadora() << endl;
-                    NLINDINPUT(configs->stringsidioma->QUEST_INSTALAR_APP[2]);
-                    string resposta;
-                    getline(cin, resposta);
-                    if(resposta!="s" && resposta!="S" && resposta!="y" && resposta!="Y"){
-                        NLIND(configs->stringsidioma->INSTAL_CANCELADA[0]+pacote->nome+configs->stringsidioma->INSTAL_CANCELADA[1]);
-                        instalarApp = false;
-                    }else{
-                        instalarApp = true;
-                    }
-                }
-            }
-            if(configs->assumirSim || instalarApp){
-                NLIND(configs->stringsidioma->INSTALANDO[0]+pacote->nome+"...");
-                //Comando de instalação via pm
-                string installCmd = "pm install -r \""+tempFile+"\"";
-                FILE* pipe = popen(installCmd.c_str(), "r");
-                char buffer[128];
-                while (fgets(buffer, 128, pipe)) {
-                    NLIND(buffer);
-                }
-                int ret = pclose(pipe);
-                if(ret==0){
-                    cout << configs->stringsidioma->INSTALADO[0] << pacote->nome << configs->stringsidioma->INSTALADO[1] << endl;
-                    return true;
-                }else{
-                    NLINDERR(configs->stringsidioma->ERRO_INSTALAR[0]+pacote->nome+configs->stringsidioma->ERRO_INSTALAR[1]);
-                }
-            }
+            return apkInstaller(tempFile, pacote->pacote, configs);
         }else{
             NLINDERR(configs->stringsidioma->ERRO_INSTALAR[0]+pacote->nome+" (SHA256 mismatch)"+configs->stringsidioma->ERRO_INSTALAR[1]);
         }
@@ -184,6 +185,82 @@ bool GerenciadorPacotes::instalarPacote(DadosPacote* pacote, RemoteRepoConfig* r
     }else{
         NLINDERR(configs->stringsidioma->ERRO_BAIXAR[0]+pacote->nome+configs->stringsidioma->ERRO_BAIXAR[1]);
         return false;
+    }
+    return false;
+}
+
+bool GerenciadorPacotes::apkInstaller(std::filesystem::path apkPath, std::string pacote, Config* configs){
+    cout << "Verificando integridade do pacote..." << endl;
+    APKManifesto* manifesto = verificarApk(apkPath, pacote, configs);
+    if( manifesto==nullptr || !manifesto->manifestoValido ){
+        string manifestoErro;
+        if(manifesto==nullptr){
+            manifestoErro = "APK verification failed: Manifest not found or unreadable.";
+        }else if(!manifesto->manifestoValido){
+            manifestoErro = "APK verification failed: Package name not found in manifest.";
+        }
+        if(configs->formatoJSON){
+            cout << "{\"status\":\"fail\", \"message\":\"APK verification failed for "+pacote+"\": \"" << manifestoErro << "\"}" << endl;
+        }else{
+            NLINDERR(configs->stringsidioma->ERRO_INSTALAR[0]+pacote+" (APK verification failed)"+configs->stringsidioma->ERRO_INSTALAR[1]+": "+manifestoErro);
+            filesystem::remove_all(apkPath);
+            delete manifesto;
+        }
+        return false;
+    }
+
+    //Exibindo permissões do APK
+    bool instalarApp = false;
+    if(!configs->assumirSim && !configs->formatoJSON){
+        NLIND(configs->stringsidioma->QUEST_INSTALAR_APP[0]+pacote+configs->stringsidioma->QUEST_INSTALAR_APP[1]);
+        if(manifesto->permissions.size()>0){
+            NLIND(configs->stringsidioma->PERMISS_REQUERIDAS[0]);
+            cout << gerarLinhaSeparadora() << endl;
+            for(string perm : manifesto->permissions){
+                NLINDINFO(" - "+configs->stringsidioma->obterPermissãoTexto(perm));
+            }
+            cout << gerarLinhaSeparadora() << endl;
+            NLINDINPUT(configs->stringsidioma->QUEST_INSTALAR_APP[2]);
+            string resposta;
+            getline(cin, resposta);
+            if(resposta!="s" && resposta!="S" && resposta!="y" && resposta!="Y"){
+                NLIND(configs->stringsidioma->INSTAL_CANCELADA[0]+pacote+configs->stringsidioma->INSTAL_CANCELADA[1]);
+                return true;
+            }else{
+                instalarApp = true;
+            }
+        }
+    }
+    if((configs->assumirSim || configs->formatoJSON) || instalarApp){
+        if(!configs->formatoJSON) NLIND(configs->stringsidioma->INSTALANDO[0]+pacote+"...");
+        else cout << "{\"status\":\"installing\", \"message\":\""+configs->stringsidioma->INSTALANDO[0]+pacote+"...\"}" << endl;
+        //Comando de instalação via pm
+        string installCmd = "pm install -r \"";
+        installCmd.append(apkPath.c_str());
+        installCmd.append("\"");
+        FILE* pipe = popen(installCmd.c_str(), "r");
+        char buffer[128];
+        string output;
+        while (fgets(buffer, 128, pipe)) {
+            output += buffer;
+            if(!configs->formatoJSON) NLIND(output);
+        }
+        int ret = pclose(pipe);
+        if(ret==0){
+            if(configs->formatoJSON){
+                cout << "{\"status\":\"success\", \"message\":\"Package \""+pacote+"\" installed successfully: "+output+"\"}" << endl;
+            }else{
+                NLIND(configs->stringsidioma->INSTALADO[0]+pacote+configs->stringsidioma->INSTALADO[1]);
+            }
+            return true;
+        }else{
+            if(configs->formatoJSON){
+                cout << "{\"status\":\"fail\", \"message\":\"Failed to install package \""+pacote+"\": "+output+"\"}" << endl;
+            }else{
+                NLINDERR(configs->stringsidioma->ERRO_INSTALAR[0]+pacote+configs->stringsidioma->ERRO_INSTALAR[1]);
+            }
+            return false;
+        }
     }
     return false;
 }
@@ -226,24 +303,23 @@ bool GerenciadorPacotes::desinstalarPacotes(){
         cout << configs->stringsidioma->DESINSTALANDO[0] << pacoteNome << "..." << endl;
         //Comando de remoção via pm
         std::string removerCmd = "pm uninstall \""+pacoteNome+"\"";
-        FILE* pipe = popen(removerCmd.c_str(), "r");
-        char buffer[128];
-        while (fgets(buffer, 128, pipe)) {
-            NLIND(buffer);
-        }
-        int ret = pclose(pipe);
-        if(ret==0){
-            cout << configs->stringsidioma->DESINSTALADO[0] << pacoteNome << configs->stringsidioma->DESINSTALADO[1] << endl;
-            return true;
+        string resultCmd = executarComandoShell(removerCmd);
+        if(stringContains(&resultCmd, "Success")){
+            string info = configs->stringsidioma->DESINSTALADO[0] + pacoteNome + configs->stringsidioma->DESINSTALADO[1];
+            if(!configs->formatoJSON){
+                cout << info << endl;
+            }else{
+                printInfo("INFO", info);
+            }
         }else{
-            NLINDERR(configs->stringsidioma->ERRO_DESINSTALAR[0]+pacoteNome+configs->stringsidioma->ERRO_DESINSTALAR[1]);
+            if(!configs->formatoJSON) NLINDERR(configs->stringsidioma->ERRO_DESINSTALAR[0]+pacoteNome+configs->stringsidioma->ERRO_DESINSTALAR[1]);
         }
     }
     return true;
 }
 
 //Parser de AndroidManifest.xml para extrair informações básicas do APK
-APKManifesto* GerenciadorPacotes::verificarApk(filesystem::path apkPath, DadosPacote* pacote){
+APKManifesto* GerenciadorPacotes::verificarApk(filesystem::path apkPath, string pacote, Config* configs){
     // Usamos smart pointer ou garantimos a limpeza para evitar leak
     APKManifesto* manifesto = new APKManifesto();
     manifesto->manifestoValido = false;
@@ -251,6 +327,7 @@ APKManifesto* GerenciadorPacotes::verificarApk(filesystem::path apkPath, DadosPa
     zip *z = zip_open(apkPath.c_str(), 0, &err);
     if (!z) {
         delete manifesto;
+        cout << "Failed to open APK file: " << apkPath << endl;
         return nullptr;
     }
 
@@ -267,7 +344,7 @@ APKManifesto* GerenciadorPacotes::verificarApk(filesystem::path apkPath, DadosPa
         bool pacoteEncontrado = false;
 
         for (const auto& s : strings) {
-            if (s == pacote->pacote) {
+            if (s == pacote) {
                 pacoteEncontrado = true;
                 manifesto->packageName = s;
             }
@@ -324,4 +401,45 @@ std::vector<std::string> GerenciadorPacotes::extrairStringsAxml(const std::vecto
         }
     }
     return strings;
+}
+
+bool GerenciadorPacotes::upgradePacotes(){
+    for(AddOn* addon : configs->addonsdinamicos){
+        if(addon->getConfig()){
+            if(addon->config->novaversao){
+                vector<string> pacoteInfos = addon->getAddonUpdate();
+                if(!apkInstaller(pacoteInfos[0], pacoteInfos[1], configs)){
+                    //Retonar texto avisando da falha
+
+                    //Aborta processo de atualizações para evitar mais erros
+                    return false;
+                }
+            }
+        }
+    }
+    //Map com pacote e versão do pacote
+    unordered_map<string, int> pacotesInfos;
+    Helper* helper = new Helper(configs);
+    //Popula a lista de pacotes e obtem o JSON de pacotes instalados para a verificação via AddOn
+    string retorno = obterVersõesPacotesInstalados(pacotesInfos, helper);
+    delete helper;
+
+    return true;
+}
+
+//Grava array de pacotes instalados e retorna o JSON bruto
+string GerenciadorPacotes::obterVersõesPacotesInstalados(unordered_map<string, int> pacotesInfos, Helper* helper){
+    vector<PackageInfo*> pacotes;
+    string retorno = helper->getPackagesInfos(pacotes);
+    for(PackageInfo* pacote : pacotes){
+        pacotesInfos[pacote->getPackageName()]=stoi(pacote->getVersionCode());
+        delete pacote;
+    }
+    return retorno;
+}
+
+//retorna id de pacote e versionCode
+unordered_map<string, int> GerenciadorPacotes::obterUpdatesOnAddon(string pacotesJson, AddOn* addon){
+    unordered_map<string, int> updates;
+    return updates;
 }

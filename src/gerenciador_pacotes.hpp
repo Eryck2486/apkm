@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <string>
 #include <vector>
@@ -5,6 +6,7 @@
 #include "apkm.hpp"
 #include "repository_manager.hpp"
 #include <nlohmann/json.hpp>
+#include "apkm_packages_manager.hpp"
 
 // Estrutura simplificada para ler o cabeçalho de um chunk AXML
 struct AxmlChunkHeader {
@@ -21,13 +23,18 @@ public:
     void pesquisar();
     bool prepararInstalarPacotes();
     bool desinstalarPacotes();
+    bool upgradePacotes();
 private:
     Config* configs;
     Repomanager* repomanager;
     static bool VerificarIntegridadePacote(std::string arquivoPath, std::string expectedMd5);
     static std::string calcularHashArquivo(const std::string& caminho, const EVP_MD* algoritmo);
     static std::vector<std::string> extrairStringsAxml(const std::vector<uint8_t>& buffer);
-    APKManifesto* verificarApk(std::filesystem::path apkPath, DadosPacote* pacote);
+    APKManifesto* verificarApk(std::filesystem::path apkPath, std::string pacote, Config* configs);
     static void mostrarListaResultados(std::vector<DadosPacote*> pacotes, Config* configs);
     bool instalarPacote(DadosPacote* pacote, RemoteRepoConfig* repoConfig);
+    bool apkInstaller(std::filesystem::path apkPath, std::string pacote, Config* configs);
+    static std::string obterVersõesPacotesInstalados(std::unordered_map<std::string, int> pacotesInfos, Helper* helper);
+    static std::unordered_map<std::string, int> obterUpdatesOnAddon(std::string pacotesJson, AddOn* addon);
+    static bool versionComparer(std::string instVer, std::string ActVer);
 };

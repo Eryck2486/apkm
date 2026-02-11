@@ -56,7 +56,6 @@ struct RepoConfig {
 struct DadosPacote
 {
     std::string origem;
-
     std::string pacote; //Nome do pacote (ex: com.exemplo.app)
     std::string nome; //Nome amigável do aplicativo
     std::string descrição; //Descrição do pacote
@@ -64,9 +63,12 @@ struct DadosPacote
     std::string sha256sum; //Hash SHA256 do arquivo APK
     std::string endereço; //Endereço completo para download do APK
     std::vector<std::string> arquiteturas; //Arquiteturaa suportadaa pelo pacote (ex: arm64-v8a, armv7a...)
+    std::string icon; //Ícone do aplicativo em base64 (opcional, pode ser utilizado para exibir o ícone na interface do usuário)
     DadosPacote(std::string raizrepo, std::vector<std::string> dados); //Construtor que recebe vetor de strings com os dados do pacote
     DadosPacote();
+    //Converte string JSON para estrutura DadosPacote
     static DadosPacote* fromJson(std::string jsonstr);
+    std::string toJson();
 };
 
 //Estrutura que representa o index.json retornado pelo servidor
@@ -76,7 +78,7 @@ struct RemoteRepoConfig
     std::vector<std::string> pinned_hashes;
     //construtor que recebe url e retorna os dados do repositório
     static RemoteRepoConfig* fromJson(std::string jsonstring);
-    static RemoteRepoConfig* fromJsonOfAddOn(std::string jsonstring);
+    static RemoteRepoConfig* fromJsonOfAddOn(std::string jsonstring, std::string addonpacote);
 
     std::string origem;
     //nome do repositório (opcional, sem caracteres especiais ou espaços ex: meu-repositorio)
@@ -87,17 +89,18 @@ struct RemoteRepoConfig
     std::vector<DadosPacote*> pacotes;                 
 };
 
-//Estrutura de configurações de um AddOn
+//Estrutura de configurações de um AddOn, funciona como um registro de todas as informações importantes do AddOn
 struct AddOnConfig
 {
     bool dinamico; //Indica se o AddOn é dinâmico (biblioteca .so) ou estático (apenas retorna RemoteRepoConfig)
-    std::string descrição;
-    std::string fornecedor;
-    std::string nome;
+    std::string descrição; //Descrição do AddOn
+    std::string fornecedor; //Fornecedor do AddOn
+    std::string nome; //Nome de exibição
     std::string addonpacote; //Pacote do Addon no sistema
-    std::string versão;
-    std::string novaversao; //Armazena a URL da nova versão do AddOn caso uma atualização seja encontrada (Caso contenha uma URL o Addon encontrou uma atualização disponível)
-    std::string prefix; //prefixo pelo qual o usuário chamará o AddOns de forma direta
+    std::string versão; //versão atual do AddOn
+    bool novaversao; //Armazena a URL da nova versão do AddOn caso uma atualização seja encontrada (Caso contenha uma URL o Addon encontrou uma atualização disponível)
+    std::string prefix; //prefixo pelo qual o usuário chamará o AddOns de forma direta, o prefixo é utilizado em seleção direta onde por exemplo no comando "apkm install fdroid:com.termux" o prefixo é fdroid
+    std::string socketName; //nome atual do socket de comunicação com o AddOn
 };
 
 struct Config;
@@ -109,27 +112,54 @@ struct Config;
 //Addons podem por exemplo ler um site e retornar resultados de pesquisa ou baixar APKs de fontes específicas
 class AddOn {
 public:
-    AddOnConfig* config;
+    //Instanciador padrão
     AddOn(std::string addonpacote, Config* mainCfg);
+    //Destrutor padrão
     ~AddOn();
+    //Função que efetua a busca por um termo e retorna lista de pacotes encontrados no AddOn
     std::vector<DadosPacote*> Buscar(std::string pesquisa);
+    //Carrega todos os AddOns disponíveis no sistema
     static std::vector<AddOn*> CarregarTodos(Config* config);
+    //Obtem os repositórios fornecidos pelo AddOn estático
     std::vector<RemoteRepoConfig*> getRepos();
-    RemoteRepoConfig* ObterPacote(std::string);
+    //Solicita um APK pelo pacote ao AddOn
+    std::vector<std::string> getPackage(std::string pacotestr);
+    //Solicita o apk de atualização do AddOn (self-update)
+    std::vector<std::string> getAddonUpdate();
+    //Recebe uma lista dos pacotes instalados e retorna um JSON com os Apps que podem ser atualizados
+    std::string getPackagesUpdatesFromJSON(std::string jsonstr);
+    //Obtem a configuração do AddOn
     bool getConfig();
-    std::vector<std::string> Query(std::string requisição);
+    //Função de query principal, essa é a "ponte" que permite que o APKM se comunique com os APKs que são AddOns
+    std::vector<std::string> ContentQuery(std::string requisição);
+    //Mostra as informações do AddOn no terminal
     void exibirAddOnInfos(Config* conf);
+    //Função de comunicação via socket para o AddOn (Mais rápido pois não depende do binder do Android diretamente)
+    std::string Call(std::string request, bool aguardarResposta);
+    //Função para inicializar o serviço do AddOn caso esteja parado
+    bool startAddOn();
+    //Configurações do AddOn 
+    AddOnConfig* config;
+    //Configurações globais
+    Config* mainCfg;
 private:
+    //Cria um socket para que o AddOn envie o estado de tarefa atual como por exemplo % do download
+    bool iniciarSocketFeedback(bool &key);
+    static void barraProgresso(int porcentagem, std::string texto);
 };
 
 struct Config
 {
+    //Nome do socket de feedback do APKM
+    std::string socketName = "apkm_socket_feedback";
     //Variável que define se o terminal será colorido
     bool terminalColor = true;
     //Variável definida por -y ou --yes para assumir "sim" em todas as perguntas
     bool assumirSim = false;
     //Determina se pacotes incompatíveis serão exibidos nas pesquisar
     bool exibirIncompatíveis = false;
+    //Define se a saída para o teminal será o formato JSON bruto ou interface amigável para humanos
+    bool formatoJSON = false;
     //lista de AddOns dinâmicos não estáticos
     std::vector<AddOn*> addonsdinamicos;
     //pacote padrão para AddOns
@@ -138,9 +168,9 @@ struct Config
     std::vector<RemoteRepoConfig*> reposglobais;
     //local onde o apkm trabalha
     std::string diretórioDados = "/data/apkm"; //Pasta de dados do apkm
+    std::string diretórioModuloSources = "/system/etc/apkm"; //Pasta de repositórios do módulo Magisk (somente leitura, é um magisk-mount dos arquivos do módulo)
     std::string diretórioSources = diretórioDados+"/sources"; //Pasta de repositórios
-    std::string diretórioAddOns = diretórioDados+"/addons"; //Pasta de AddOns
-    std::string diretórioIdiomas = diretórioDados+"/locales"; //Pasta de idiomas
+    std::string diretórioIdiomas = diretórioModuloSources+"/locales"; //Pasta de idiomas
     //Instância contendo strings do idioma local para utilização no restante da aplicação
     Strings *stringsidioma;
     //Instância global do CURL
@@ -164,6 +194,7 @@ struct Config
     std::string nomebinario;
     //Construtor que prepara as configurações da execução para o processamento da ordem
     Config(int argc, char* argv[]);
+    bool argParam(std::string argstr);
     //Destrutor que limpa a instância
     ~Config();
 
@@ -180,7 +211,7 @@ struct Config
 struct Tools
 {
     bool linkVálido = false; //Indica se o link do repositório foi acessado com sucesso (Passou na verificação de certificado)
-    bool usarSSL = false;
+    bool usarSSL = false; //Estado do SSL
     std::string url; //Armazena a URL do repositório/site sendo validado
     std::string toolname; //Nome do objeto que está utilizando a struct (Para mensagens de erro)
     std::vector<std::string> certificadoHashs; //Armazena os hashes do certificado SSL obtidos durante a conexão
@@ -196,6 +227,7 @@ namespace Utilitarios
     std::string getProp(std::string prop);
     void stringReplace(std::string* string, std::string alvo, std::string novotexto);
     std::vector<std::string> stringSplit(std::string* str, char alvo);
+    bool stringContains(std::string* str, std::string alvo);
     bool search_match(std::string fonte, std::string termo);
     std::string obterPastaTemporaria();
     std::string executarComandoShell(std::string cmd);
@@ -209,9 +241,12 @@ namespace Utilitarios
     void NLINDINFO(std::string msg);
     void NLINDINPUT(std::string msg);
     bool terminalColor();
+    std::string requisiçãoViaSocket(std::string SOCKETNAME, std::string function, bool aguardarResposta);
+    //Imnprime uma menssagewm de erro no terminal
+    void printInfo(std::string tipo, std::string msg);
 };
 
-//Representação do manifesto Android (AndroidManifest.xml) de um APK
+//Representação mínima do manifesto Android (AndroidManifest.xml) de um APK para a validação
 struct APKManifesto
 {
     std::string packageName; //Nome do pacote

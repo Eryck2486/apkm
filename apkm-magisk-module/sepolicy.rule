@@ -1,0 +1,2 @@
+allow magisk magisk unix_stream_socket { create bind listen accept connectto read write getattr setopt }
+allow { untrusted_app untrusted_app_all platform_app } magisk unix_stream_socket { connectto read write }

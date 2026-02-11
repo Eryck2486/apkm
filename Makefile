@@ -27,6 +27,9 @@ LLVMRANLIB=$(CPPANDROIDBIN)/llvm-ranlib
 LLVMNM=$(CPPANDROIDBIN)/llvm-nm
 LLVMSTRIP=$(CPPANDROIDBIN)/llvm-strip
 LD=$(CPPANDROIDBIN)/ld.lld
+JAVA=$(WORKDIR)/tools/jbr/bin/java
+JAVAC=$(WORKDIR)/tools/jbr/bin/javac
+D8=$(WORKDIR)/tools/d8-build/d8.jar
 
 OPENSSL_INST=$(WORKDIR)/include/openssl
 LIBZIP_INST=$(WORKDIR)/include/libzip/build_output
@@ -67,7 +70,8 @@ SRCS = $(SRCPATH)/main.cpp \
 	$(SRCPATH)/repository_manager.cpp \
 	$(SRCPATH)/idiomas.cpp \
 	$(SRCPATH)/apkm.cpp \
-	$(SRCPATH)/gerenciador_pacotes.cpp
+	$(SRCPATH)/gerenciador_pacotes.cpp \
+	$(SRCPATH)/apkm_packages_manager.cpp
 
 EXARGS=include/curl/lib/.libs/libcurl.a include/openssl/libssl.a include/openssl/libcrypto.a include/libzip/lib/libzip.a -static-libstdc++ -lz
 RM = rm -f
@@ -86,18 +90,25 @@ OBJS= \
 build: $(SRCS) prepare
 	$(MAKE) build_apkm
 
-build_apkm: $(SRCS)
+build_apkm: build_helper $(SRCS)
 	$(CXX) $(CXXFLAGS) $(SRCS) $(EXARGS) -o $(TARGET);
 	@if [ -e $(TARGET) ]; then \
 		echo "Binário "$(TARGET)" compilado para arquitetura "$(ARCHITECTURE)" com sucesso."; \
 	else echo "Falha ao criar o binário "$(TARGET)" para a arquitetura "$(ARCHITECTURE)"."; \
 	fi;
+	make build_module;
+
+#Produz o Helper.jar para ser integrado ao binário do APKM
+build_helper:
+	cd helper; \
+	make JAVA=$(JAVA) JAVAC=$(JAVAC) D8=$(D8) ANDROIDLIB=$(WORKDIR)/helper/libs/android.jar;
+	cd ../;
 
 prepare: clean
 	@mkdir -p build;
 	@mkdir -p tools;
 	@mkdir -p include;
-	#Baixa o NDK do android para cross-compile (recomenda-se sempre baixar a mais recente);
+#Baixa o NDK do android para cross-compile (recomenda-se sempre baixar a mais recente);
 	@if [ ! -e tools/android-ndk-r29 ]; then \
 		cd tools; \
 		wget -O ndk.zip $(ANDROIDNDKLINK); \
@@ -106,14 +117,14 @@ prepare: clean
 		cd ..; \
 	fi;
 
-	#Baixa o nlohmann/json para processamento de Json;
+#Baixa o nlohmann/json para processamento de Json;
 	@if [ ! -e include/json ]; then \
 		cd include; \
 		if [ ! -e include/json ]; then git clone $(JSONREPO); fi; \
 		cd ..; \
 	fi;
 
-	#Baixa e compila as bibliotecas openssl para conexão e verificação https através do curl;
+#Baixa e compila as bibliotecas openssl para conexão e verificação https através do curl;
 	@if [ ! -e include/openssl/libssl.a ]; then \
 		echo "Configurando OpenSSL\n"; \
 		cd include; \
@@ -138,7 +149,7 @@ prepare: clean
 		echo "\n OpenSSL Configurado"; \
 	fi;
 
-	#Baixa e compila o curld;
+#Baixa e compila o curl;
 	@if [ ! -e include/curl/lib/.libs/libcurl.a ] && [ -e include/openssl/libssl.a ]; then \
 		echo "Configurando Curl\n"; \
 		cd include; \
@@ -172,7 +183,7 @@ prepare: clean
 	else echo "Erro, falha ao compilar OpenSSL"; \
 	fi;
 
-	#Baixa e compila a biblioteca libzip para manipulação de arquivos zip/apk;
+#Baixa e compila a biblioteca libzip para manipulação de arquivos zip/apk;
 	@if [ ! -e include/libzip/lib/libzip.a ]; then \
 		echo "Configurando libzip\n"; \
 		cd include; \
@@ -221,10 +232,23 @@ prepare: clean
 		echo "\n libzip Configurado"; \
 	fi;
 
+#Cria o módulo apmk-module.zip (Para o magisk)
+build_module:
+#Copia a estrutura base para build
+	cp -r apkm-magisk-module build;
+#Copia o helper.jar para a estrutura do módulo
+	cp helper/build/Helper.jar build/apkm-magisk-module/helper.jar;
+#Copia o binário do apkm para a estrutura do módulo
+	cp $(TARGET) build/apkm-magisk-module/system/bin/apkm;
+#criando o zip do módulo
+	cd build/apkm-magisk-module && zip -r ../apkm-module-installer.zip *;
 
 # Phony targets don't correspond to actual files
-.PHONY: all clean
+.PHONY: all clean prepare build_module build_helper build_apkm build
 
 # Clean target: removes generated files
 clean:
 	$(RM) $(TARGET) $(OBJS)
+	$(RM) -rf include/pugixml/build/
+	$(RM) -rf include/pugixml/lib/
+	$(RM) -rf build/

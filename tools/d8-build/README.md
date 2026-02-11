@@ -1,0 +1,1 @@
+O D8 é parte do Android Sdk Build-tools, para uma versão mais antiga recomenda-se baixar o sdk completo? a versão inclusa é parte do android-sdk-build-tools-36.0.0

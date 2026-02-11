@@ -24,46 +24,57 @@ int Main::main(int argc, char* argv[]) {
     int retorno = 1;
     Config::printcfg(config, config->stringsidioma);
     if (config->curl){
-        switch(config->instrução){
-            case 1:
-                break;
-            case 2:
-                if(manager->adicionarRepositório()){
+        //Verifica se existe alguma fonte antes de prosseguir
+        if(config->reposglobais.size()>0 || config->addonsdinamicos.size()>0){
+            switch(config->instrução){
+                case 1:
+                    break;
+                case 2:
+                    if(manager->adicionarRepositório()){
+                        retorno = 0;
+                    }
+                    break;
+                case 3:
+                    if(manager->removerRepositório()){
+                        retorno = 0;
+                    }
+                    break;
+                case 4:
+                    if(manager->listarRepositórios()){
+                        retorno = 0;
+                    }
+                    break;
+                case 5:
+                    showAddOnsInfos(config);
                     retorno = 0;
-                }
-                break;
-            case 3:
-                if(manager->removerRepositório()){
+                    break;
+                case 6:
+                    gerenciador->pesquisar();
                     retorno = 0;
-                }
-                break;
-            case 4:
-                if(manager->listarRepositórios()){
-                    retorno = 0;
-                }
-                break;
-            case 5:
-                //listar AddOns
-                retorno = 0;
-                break;
-            case 6:
-                gerenciador->pesquisar();
-                retorno = 0;
-                break;
-            case 7:
-                if(gerenciador->prepararInstalarPacotes()){
-                    retorno = 0;
-                }
-                break;
-            case 8:
-                if(gerenciador->desinstalarPacotes()){
-                    retorno = 0;
-                }
-                break;
-            default:
-                printhelp(config);
-                retorno=1;
-                break;
+                    break;
+                case 7:
+                    if(gerenciador->prepararInstalarPacotes()){
+                        retorno = 0;
+                    }
+                    break;
+                case 8:
+                    if(gerenciador->desinstalarPacotes()){
+                        retorno = 0;
+                    }
+                    break;
+                case 9:
+                    if(gerenciador->upgradePacotes()){
+                        retorno = 0;
+                    }
+                    break;
+                default:
+                    printhelp(config);
+                    retorno=1;
+                    break;
+            }
+        }else{
+            NLINDERR(config->stringsidioma->ERR_NO_REPOS[0]);
+            retorno=1;
         }
     }
     delete(manager);
@@ -80,6 +91,14 @@ void Main::printhelp(Config* conf){
     string ajudastr = idioma->AJUDA[0];
     stringReplace(&ajudastr, "$$BIN", conf->nomebinario);
     cout << ajudastr;
+}
+
+void Main::showAddOnsInfos(Config* conf){
+    vector<AddOn*> addons = AddOn::CarregarTodos(conf);
+    for(AddOn* addon : addons){
+        addon->exibirAddOnInfos(conf);
+        gerarLinhaSeparadora();
+    }
 }
 
 int main(int argc, char* argv[])

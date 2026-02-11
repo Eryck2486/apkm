@@ -33,10 +33,12 @@ vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
     vector<RepoConfig*> reposlocais = CarregarRepositóriosLocais(configs);
     for(RepoConfig* repo : reposlocais){
         Tools tool = Tools(repo->pinned_hashes, repo->url, configs, configs->ssl);
-        if(terminalColor()){
-            cout << BOLDBLUE << repo->name << " (" << repo->url << "): " << RESET;
-        }else{
-            cout << repo->name << " (" << repo->url << "): ";
+        if(configs->formatoJSON){
+            if(terminalColor()){
+                cout << BOLDBLUE << repo->name << " (" << repo->url << "): " << RESET;
+            }else{
+                cout << repo->name << " (" << repo->url << "): ";
+            }
         }
         if(validar(tool)){
         RemoteRepoConfig* serverRepo = RemoteRepoConfig::fromJson(tool.serverResponse);
@@ -45,13 +47,15 @@ vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
         serverRepo->origem=origem.filename();
         if(serverRepo){
             reposglobais.push_back(serverRepo);
-            if(terminalColor()){
-                cout << BOLDGREEN << "Ok." << RESET << endl;
-            }else{
-                cout << "Ok." << endl;
+            if(!configs->formatoJSON){
+                if(terminalColor()){
+                    cout << BOLDGREEN << "Ok." << RESET << endl;
+                }else{
+                    cout << "Ok." << endl;
+                }
             }
         }
-        }else{
+        }else if(!configs->formatoJSON){
             if(terminalColor()){
                 cout << BOLDRED << "ERR." << RESET << endl;
             }else{
@@ -67,6 +71,16 @@ vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
         }else{
             for(RemoteRepoConfig* repo : addon->getRepos()){
                 reposglobais.push_back(repo);
+                if(!configs->formatoJSON)
+                {
+                    if(terminalColor()){
+                        cout << BOLDBLUE << repo->name << " (" << addon->config->nome << " (Static Addon)" << "): " << RESET;
+                        cout << BOLDGREEN << "Ok." << RESET << endl;
+                    }else{
+                        cout << repo->name << " (" << addon->config->nome << " (Static Addon)" << "): ";
+                        cout << "Ok." << endl;
+                    }
+                }
             }
             delete(addon);
         }
@@ -82,7 +96,7 @@ vector<RemoteRepoConfig*> Repomanager::ObterTodosRepositórios(){
 //Obtem a lista de repositórios a partir da pasta de repositórios locais
 std::vector<RepoConfig*> Repomanager::CarregarRepositóriosLocais(Config* configs){
     Strings* s = configs->stringsidioma;
-    cout << s->CARREGANDO_REPOSITORIOS[0] << endl;
+    if(!configs->formatoJSON) cout << s->CARREGANDO_REPOSITORIOS[0] << endl;
     std::queue<std::string> repoFiles;
     try {
         for (const auto& entrada : filesystem::directory_iterator(sources_dir(""))) { // Itera sobre as entradas do diretório
@@ -160,8 +174,7 @@ bool Repomanager::validar(Tools& tools) {
 
     // Se chegou aqui, deu erro
     if (http_code != 200) {
-        cout << http_code << "." << endl;
-        tools.errorMsg = tools.configs->stringsidioma->REPOSITORIO_INVALIDO[0];
+        tools.errorMsg = http_code+" "+tools.configs->stringsidioma->REPOSITORIO_INVALIDO[0];
     }
     return false;
 }
@@ -173,22 +186,34 @@ bool Repomanager::adicionarRepositório(){
         configs->url
     );
     Tools tool = Tools(repoconfig->pinned_hashes, configs->url, configs, configs->ssl);
-    cout << configs->stringsidioma->VERIFICANDO_REPOSITORIO[0]+configs->url+": ";
+    if(!configs->formatoJSON) cout << configs->stringsidioma->VERIFICANDO_REPOSITORIO[0]+configs->url+": ";
     if(validar(tool)){
-        cout << configs->stringsidioma->PRONTO[0] << endl;
+        if(!configs->formatoJSON) cout << configs->stringsidioma->PRONTO[0] << endl;
         RemoteRepoConfig* onlineconfig = RemoteRepoConfig::fromJson(tool.serverResponse);
         if(onlineconfig){
             repoconfig->name=onlineconfig->name;
             repoconfig->filepath=sources_dir(repoconfig->name+".json");
-            cout << configs->stringsidioma->ADICIONANDO_REPOSITÒRIOS[0] << repoconfig->name << configs->stringsidioma->ADICIONANDO_REPOSITÒRIOS[1] << endl;
+            if(!configs->formatoJSON) cout << configs->stringsidioma->ADICIONANDO_REPOSITÒRIOS[0] << repoconfig->name << configs->stringsidioma->ADICIONANDO_REPOSITÒRIOS[1] << endl;
             if (cin.peek() == '\n') {
                 cin.ignore();
             }
             save_or_update(repoconfig);
-            cout << configs->stringsidioma->REPOSITORIO_ADICIONADO[0] << endl;
+            if(!configs->formatoJSON){
+                cout << configs->stringsidioma->REPOSITORIO_ADICIONADO[0] << endl;
+            }else{
+                printInfo("ADDED_REPO", repoconfig->name);
+            }
+            configs->reposglobais.push_back(onlineconfig);
+            delete(onlineconfig);
+            delete(repoconfig);
             return true;
         }else{
-            cout << configs->stringsidioma->REPOSITORIO_INVALIDO[0];
+            string errmsg = configs->stringsidioma->REPOSITORIO_INVALIDO[0];
+            if(!configs->formatoJSON){
+                cout << errmsg << endl;
+            }else{
+                printInfo("INVALID_REPO", errmsg);
+            }
             return false;
         }
     }else{
@@ -208,11 +233,14 @@ bool Repomanager::removerRepositório(){
                 if(filesystem::exists(repo->filepath))
                 {
                     filesystem::remove(repo->filepath);
-                    cout << configs->stringsidioma->REPOSITORIO_REMOVIDO[0] << repo->name << configs->stringsidioma->REPOSITORIO_REMOVIDO[1] << endl;
+                    if(!configs->formatoJSON){
+                        cout << configs->stringsidioma->REPOSITORIO_REMOVIDO[0] << repo->name << configs->stringsidioma->REPOSITORIO_REMOVIDO[1] << endl;
+                    }else{
+                        printInfo("REMOVED_REPO", repo->name);
+                    }
                     encontrado=true;
                     break;
                 }
-
             }
         }
         if(!encontrado){
@@ -227,11 +255,23 @@ bool Repomanager::removerRepositório(){
 bool Repomanager::listarRepositórios(){
     vector<RemoteRepoConfig*> repos = configs->reposglobais;
     if(repos.size()>0){
+        if(!configs->formatoJSON) gerarLinhaSeparadora();
         for(RemoteRepoConfig* repo : configs->reposglobais){
-            cout << repo->name << " (" << repo->origem << "): " << endl;
+            string info = repo->name + " (" + repo->origem + ")";
+            if(!configs->formatoJSON){
+                NLINDINFO(info);
+                gerarLinhaSeparadora();
+            }else{
+                printInfo("LIST_REPO", info);
+            }
         }
+
     }else{
-        cerr << configs->stringsidioma->NENHUM_REPO_ENCONTRADO[0] << endl;
+        if(!configs->formatoJSON){
+            cerr << configs->stringsidioma->NENHUM_REPO_ENCONTRADO[0] << endl;
+        }else{
+            printInfo("NO_REPOS", "");
+        }
         return false;
     }
     return true;
@@ -261,7 +301,7 @@ bool Repomanager::baixarArquivo(const std::string& url, const std::string& desti
     // Timeout: não fica esperando para sempre (ex: 30s para conectar)
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
 
-    if (mostrarProgresso) {
+    if (mostrarProgresso && !configs->formatoJSON) {
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
     } else {
@@ -270,10 +310,11 @@ bool Repomanager::baixarArquivo(const std::string& url, const std::string& desti
 
     CURLcode res = curl_easy_perform(curl);
     fclose(fp);
-
-    if (mostrarProgresso) {
-        // \r volta ao início, imprime espaços para limpar a linha e \r volta de novo
-        std::cout << "\r" << std::string(80, ' ') << "\r" << std::flush;
+    if(!configs->formatoJSON){
+        if (mostrarProgresso) {
+            // \r volta ao início, imprime espaços para limpar a linha e \r volta de novo
+            std::cout << "\r" << std::string(80, ' ') << "\r" << std::flush;
+        }
     }
 
     if (res != CURLE_OK) {
@@ -292,8 +333,6 @@ void Repomanager::save_or_update(RepoConfig* myConfig) {
     if(repostream.is_open()){
         repostream << jsonString << endl;
         repostream.close();
-    }else{
-        
     }
 }
 

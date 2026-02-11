@@ -1,3 +1,5 @@
+//Este arquivo é parte do projeto APKM, um gerenciador de pacotes para Android com gerenciador root Magisk/KernelSU
+
 #include "apkm.hpp"
 #include <sys/system_properties.h>
 #include <unistd.h>
@@ -11,6 +13,10 @@
 #include <iostream>
 #include <sys/ioctl.h> // Para ioctl e TIOCGWINSZ
 #include <unistd.h>    // Para STDOUT_FILENO
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <thread>
 
 using json = nlohmann::json;
 using namespace std;
@@ -46,22 +52,22 @@ DadosPacote::DadosPacote(string raizrepo, vector<string> dados){
     }else{
         this->endereço="ERRO_NO_ADDRESS_PROVIDED";
     }
-    cout << "JSONARCHS: " << dados[6] << endl;
-
+    arquiteturas=stringSplit(&dados[6], ',');
 }
 
+//Construtor padrão para json
 DadosPacote* DadosPacote::fromJson(string jsonstr){
     DadosPacote* pacote = new DadosPacote();
     try{
         json j = json::parse(jsonstr);
-        cout << jsonstr << endl;
         if(j.contains("pacote")) j.at("pacote").get_to(pacote->pacote);
         if(j.contains("nome")) j.at("nome").get_to(pacote->nome);
         if(j.contains("descricao")) j.at("descricao").get_to(pacote->descrição);
         if(j.contains("versao")) j.at("versao").get_to(pacote->versão);
         if(j.contains("sha256sumOrPGPLink")) j.at("sha256sumOrPGPLink").get_to(pacote->sha256sum);
         if(j.contains("endereco")) j.at("endereco").get_to(pacote->endereço);
-        if(j.contains("arquiteturas")) j.at("arquiteturas").get_to(pacote->arquiteturas);      
+        if(j.contains("arquiteturas") && j["arquiteturas"].is_array()) j.at("arquiteturas").get_to(pacote->arquiteturas);  
+        if(j.contains("icon")) j.at("icon").get_to(pacote->icon);
     }catch(...){
         return nullptr;
     }
@@ -71,6 +77,25 @@ DadosPacote* DadosPacote::fromJson(string jsonstr){
 DadosPacote::DadosPacote(){
     //Construtor padrão, implementar lógica se necessário.
 }
+
+string DadosPacote::toJson(){
+    json j = json{
+        {"pacote", pacote},
+        {"nome", nome},
+        {"descricao", descrição},
+        {"versao", versão},
+        {"sha256sumOrPGPLink", sha256sum},
+        {"endereco", endereço},
+        {"arquiteturas", arquiteturas},
+        {"icon", icon},
+        {"source", origem}
+    };
+    string jf = j.dump(4);
+    stringReplace(&jf, "\n", ""); // Remover quebras de linha para evitar problemas de formatação
+    stringReplace(&jf, "    ", "");
+    return jf;
+}
+
 
 //Converte string JSON para estrutura RemoteRepoConfig (Contem os dados obtidos do servidor/Addon)
 RemoteRepoConfig* RemoteRepoConfig::fromJson(std::string jsonstring) {
@@ -92,6 +117,7 @@ RemoteRepoConfig* RemoteRepoConfig::fromJson(std::string jsonstring) {
                 }
             }
         }
+        r->origem=r->name+" (Repo)";
         return r;
     } catch (...) {
         //Retorna nulo em caso de falha no parse
@@ -99,7 +125,7 @@ RemoteRepoConfig* RemoteRepoConfig::fromJson(std::string jsonstring) {
     }
 }
 
-RemoteRepoConfig* RemoteRepoConfig::fromJsonOfAddOn(std::string jsonstring){
+RemoteRepoConfig* RemoteRepoConfig::fromJsonOfAddOn(std::string jsonstring, std::string addonpacote){
     try {
         // Tenta fazer o parse. Se falhar, pula para o 'catch'
         json j = json::parse(jsonstring);
@@ -111,13 +137,14 @@ RemoteRepoConfig* RemoteRepoConfig::fromJsonOfAddOn(std::string jsonstring){
             for (const auto& item : j["packages"]) {
                 // Aqui você chama o seu construtor de DadosPacote
                 DadosPacote* pacDados = DadosPacote::fromJson(item.dump());
-                pacDados->origem=r->name+" (Repo AddOn)";
+                pacDados->origem=r->name+" (Repo AddOn) "+addonpacote;
                 r->pacotes.push_back(pacDados);
             }
         }
         if (j.contains("pinned_hashs") && j["pinned_hashs"].is_array()) {
             j.at("pinned_hashs").get_to(r->pinned_hashes);
         }
+        r->origem=r->name+" (Repo AddOn) "+addonpacote;
         return r;
     } catch (...) {
         //Retorna nulo em caso de falha no parse
@@ -176,9 +203,6 @@ Config::Config(int argc, char* argv[]){
     if(!filesystem::exists(diretórioSources)){
         filesystem::create_directory(diretórioSources);
     }
-    if(!filesystem::exists(diretórioAddOns)){
-        filesystem::create_directory(diretórioAddOns);
-    }
     //Prepara o suporte de idioma do sistema
     stringsidioma = new Strings(this);
     //prepara a instância do CURL para ser utilizada
@@ -197,21 +221,9 @@ Config::Config(int argc, char* argv[]){
         //7 = instalar pacote (install)
         //8 = desinstalar pacote (uninstall)
 
-        //Desativa SSL temporáriamente se o argumento --no-ssl for encontrado
-        if(ssl && argstr=="--no-ssl"){
-            ssl=false;
-        }
-
-        //Define a opção para assumir "sim" em todas as perguntas
-        if(!assumirSim && (argstr=="--yes" || argstr=="-y")){
-            assumirSim=true;
-        }
-
-        //Mostra pacotes incompatíveis
-        if(argstr=="--incompatíveis"){
-            exibirIncompatíveis=true;
-        }
-
+        
+        //Verifica se o argumento é um comando de configuração, caso contrário segue para o switch
+        if(!argParam(argstr)) 
         //Swaitch acionado apos identificar o comando principal (Diferente de zero)
         switch(instrução){
             case 1:
@@ -248,7 +260,7 @@ Config::Config(int argc, char* argv[]){
                     instrução=2;
                 }else if(argstr=="--rm-repo"){
                     instrução=3;
-                }else if(argstr=="list"){ //Inclue opção para addons e repositórios
+                }else if(argstr=="--list"){ //Inclue opção para addons e repositórios
                     instrução=4;
                 }else if(argstr=="search"){
                     instrução=6;
@@ -256,12 +268,41 @@ Config::Config(int argc, char* argv[]){
                     instrução=7;
                 }else if(argstr=="uninstall"){
                     instrução=8;
+                }else if(argstr=="upgrade"){
+                    instrução=9;
                 }else{
                     comandoInvalido=argstr;
                 }
             }
         }
     }
+}
+
+bool Config::argParam(string argstr){
+    //Desativa SSL temporáriamente se o argumento --no-ssl for encontrado
+    if(ssl && argstr=="--no-ssl"){
+        ssl=false;
+        return true;
+    }
+
+    //Define a opção para assumir "sim" em todas as perguntas
+    if(!assumirSim && (argstr=="--yes" || argstr=="-y")){
+        assumirSim=true;
+        return true;
+    }
+
+    //Define a saída para o formato JSON
+    if(argstr=="--json" || argstr=="-j"){
+        formatoJSON=true;
+        return true;
+    }
+
+    //Mostra pacotes incompatíveis
+    if(argstr=="--all-archs"){
+        exibirIncompatíveis=true;
+        return true;
+    }
+    return false;
 }
 
 Config::~Config() {
@@ -280,6 +321,7 @@ Config::~Config() {
 
 //Mostra as configurações da execução
 void Config::printcfg(Config* config, Strings* stringsidioma){
+    if(config->formatoJSON) return;
     NLIND(stringsidioma->USANDO_SSL[0]+": "+boolToHLang(config->ssl, stringsidioma));
 }
 
@@ -305,10 +347,13 @@ AddOn::AddOn(std::string addonpacote, Config* mainCfg) {
     this->config = new AddOnConfig();
     this->config->addonpacote=addonpacote;
     this->config->addonpacote=addonpacote;
+    this->mainCfg=mainCfg;
 }
 
 //Destrutor que limpa a instância
 AddOn::~AddOn(){
+    //Envia um sinal para limpar cache e dados temporários do app.
+    ContentQuery("cleanAll");
     delete(config);
 }
 
@@ -320,28 +365,41 @@ vector<AddOn*> AddOn::CarregarTodos(Config* config){
     vector<string> addonspacks = stringSplit(&saida, '\n');
     for(string addonpack : addonspacks){
         AddOn* addon = new AddOn(addonpack, config);
-        if(addon->getConfig()){
-            addons.push_back(addon);
-        }else{
-            delete(addon);
+        int tentativas = 5;
+        int delay = 5; // 5 segundos
+        bool key = false;
+        for(int i=0; (i<tentativas && !key); i++){
+            if(addon->getConfig()){
+                addons.push_back(addon);
+                key=true;
+            }else{
+                addon->startAddOn();
+                sleep(delay);
+            }
         }
+        if(!key) delete(addon);
     }
     return addons;
 }
 
 //Carrega a configuração do AddOn a partir da instância da biblioteca dinâmica (Determina se é estático ou dinâmico)
 bool AddOn::getConfig(){
-    vector<string> addonconfig = Query("getConfig");
+    vector<string> addonconfig = ContentQuery("getConfig");
     try{
         json j = json::parse(addonconfig[0]);
+        //Print do JSON para depuração (Remover depois)
         if(j.contains("descricao")) j.at("descricao").get_to(config->descrição);
         if(j.contains("fornecedor")) j.at("fornecedor").get_to(config->fornecedor);
         if(j.contains("dinamico")) j.at("dinamico").get_to(config->dinamico);
         if(j.contains("versao")) j.at("versao").get_to(config->versão);
         if(j.contains("nomeExibicao")) j.at("nomeExibicao").get_to(config->nome);
-        if(j.contains("updateUrl") && j["updateUrl"]!="") j.at("updateUrl").get_to(config->novaversao);
+        if(j.contains("hasUpdate")) j.at("hasUpdate").get_to(config->novaversao);
         if(j.contains("prefix") && j["prefix"]!="") j.at("prefix").get_to(config->prefix);
+        if(j.contains("SocketName") && j["SocketName"]!="") j.at("SocketName").get_to(config->socketName);
     }catch(...){
+        return false;
+    }
+    if(config->socketName=="UKNOWN"){
         return false;
     }
     return true;
@@ -352,25 +410,24 @@ void AddOn::exibirAddOnInfos(Config* globalconfig){
     vector<string>* ADDON_INFOS = &globalconfig->stringsidioma->ADDON_INFOS;
     NLIND((*ADDON_INFOS)[0]);
     cout << gerarLinhaSeparadora() << endl;
-    NLINDINFO((*ADDON_INFOS)[1]);
     NLINDINFO((*ADDON_INFOS)[1]+config->nome);
     NLINDINFO((*ADDON_INFOS)[2]+config->fornecedor);
     NLINDINFO((*ADDON_INFOS)[3]+globalconfig->boolToHLang(config->dinamico, globalconfig->stringsidioma));
     NLINDINFO((*ADDON_INFOS)[4]+config->descrição);
     NLINDINFO((*ADDON_INFOS)[5]+config->versão);
-    NLINDINFO((*ADDON_INFOS)[6]);
-    if(config->novaversao==""){
-        cout << globalconfig->stringsidioma->SIM[0];
-    }else{
-        cout << globalconfig->stringsidioma->NAO[0];
-    }
+    string info = Config::boolToHLang(!config->novaversao, globalconfig->stringsidioma);
+    NLINDINFO((*ADDON_INFOS)[6]+info);
+
     cout << endl << gerarLinhaSeparadora() << endl;
 }
 
 std::vector<DadosPacote*> AddOn::Buscar(string pesquisa){
-    std::vector<DadosPacote*> pacotes;
-    cout << "Resultados de "+config->nome+": " << endl;
-    vector<string> query = Query("search="+pesquisa);
+    std::vector<DadosPacote*> pacotes = std::vector<DadosPacote*>();
+    string response = Call("search="+pesquisa, true);
+    if(response==""){
+        return pacotes;
+    }
+    vector<string> query = stringSplit(&response, '\n');
     for(string jsonstr : query){
         DadosPacote* pacote = DadosPacote::fromJson(jsonstr);
         pacote->origem=config->nome+" (Dinamic AddOn)";
@@ -381,22 +438,54 @@ std::vector<DadosPacote*> AddOn::Buscar(string pesquisa){
     return pacotes;
 }
 
-RemoteRepoConfig* AddOn::ObterPacote(string pacotestr){
-    vector<string> query = Query("getPackage="+pacotestr);
-    string jsonstr = query[0];
-    RemoteRepoConfig* repo = RemoteRepoConfig::fromJsonOfAddOn(jsonstr);
-    if(repo){
-        return repo;
+//Solicita um pacote para o Addon e recebe {"status":"status", "packageFile":"/data/user/0/com.apkm.addon.exemplo/cache/arquivo.apk", "package":"com.pacote.app"} ou {"status":"fail", "packageFile":"", "package":""} se o pacote não existe.
+//status é "success" para pacote válido e obtido e "fail" para pacote não encontrado.
+//deve retornar [arquivo.apk, com.pacote.exemplo] diretório do apk e o id do pacote.
+vector<string> AddOn::getPackage(string pacotestr){
+    vector<string> resultado = std::vector<string>();
+    //Inicia call em thread
+    string response;
+    //Cria uma thread para o socket principal
+    bool ciclo = true;
+    std::thread processo = std::thread([&](){
+        string pacotestrtmp = pacotestr;
+        response = Call("getPackage="+pacotestrtmp, true);
+        //Garante o encerramento do socket de feedBack criado para a variável estado caso a comunicação com o AddOn falhe
+        if(response==""){
+            response="{\"status\":\"fail\", \"packageFile\":\"\", \"package\":\"\"}";
+        }
+        ciclo=false;
+    });
+    processo.detach();
+    bool estado = iniciarSocketFeedback(ciclo); //recebe e exibe o estado da atividade atual e aguarda o status de erro ou falha antes de avançar
+    if(!estado){
+        return resultado;
     }
-    return nullptr;
+    vector<string> query = stringSplit(&response, '\n');
+    string jsonstr = query[0];
+    try{
+        json j = json::parse(jsonstr);
+        string status;
+        if(j.contains("status")) j.at("status").get_to(status);
+        if(status=="success"){
+            string pacoteAddr;
+            string pacoete;
+            if(j.contains("packageFile")) j.at("packageFile").get_to(pacoteAddr);
+            if(j.contains("package")) j.at("package").get_to(pacoete);
+            resultado.push_back(pacoteAddr);
+            resultado.push_back(pacoete);
+        }
+    }catch(...){
+    }
+    return resultado;
 }
 
 //Utilizado quando um AddOn é do tipo estático (apenas gera o RemoteRepoConfig)
 std::vector<RemoteRepoConfig*> AddOn::getRepos(){
     std::vector<RemoteRepoConfig*> repositórios;
-    vector<string> query = Query("getRepos");
+    vector<string> query = ContentQuery("getRepos");
     for(string jsonstr : query){
-        RemoteRepoConfig* repo = RemoteRepoConfig::fromJsonOfAddOn(jsonstr);
+        RemoteRepoConfig* repo = RemoteRepoConfig::fromJsonOfAddOn(jsonstr, config->addonpacote);
         if(repo){
             repositórios.push_back(repo);
         }
@@ -404,8 +493,8 @@ std::vector<RemoteRepoConfig*> AddOn::getRepos(){
     return repositórios;
 }
 
-//Efetua a query para o AddOn
-vector<string> AddOn::Query(std::string requisição){
+//Efetua a query para o AddOn (Query via ContentProvider)
+vector<string> AddOn::ContentQuery(std::string requisição){
     std::string querybruta = Utilitarios::executarComandoShell("content query --uri content://"+config->addonpacote+"/"+requisição);
     vector<string> retornoTmp = Utilitarios::stringSplit(&querybruta, '\n');
     vector<string> retorno;
@@ -415,6 +504,169 @@ vector<string> AddOn::Query(std::string requisição){
     return retorno;
 }
 
+//Solicita um pacote de atualização do AddOn (self-update), recebe {"status":"success/fail", "packageFile":"/data/user/0/com.apkm.addon.exemplo/cache/arquivo.apk", "package":"com.pacote.exemplo"} ou {"status":"fail", "packageFile":"", "package":""} se o pacote não existe ou ocorreu um erro.
+vector<string> AddOn::getAddonUpdate(){
+    vector<string> resultado = std::vector<string>();
+    vector<string> query = ContentQuery("getUpdate");
+    string jsonstr = query[0];
+    try{
+        json j = json::parse(jsonstr);
+        string status;
+        if(j.contains("status")) j.at("status").get_to(status);
+        if(status=="success"){
+            string pacoteAddr;
+            string pacoete;
+            if(j.contains("packageFile")) j.at("packageFile").get_to(pacoteAddr);
+            if(j.contains("package")) j.at("package").get_to(pacoete);
+            resultado.push_back(pacoteAddr);
+            resultado.push_back(pacoete);
+        }
+    }catch(...){
+    }
+    return resultado;
+}
+
+//envia uma requisição via socket para o AddOn e aguarda a resposta caso aguardarResposta seja true, caso contrário apenas envia a requisição sem aguardar resposta (utilizado para requisições que não necessitam de resposta como iniciar o serviço do AddOn)
+string AddOn::Call(string request, bool aguardarResposta){
+    return Utilitarios::requisiçãoViaSocket(config->socketName, request, aguardarResposta);
+}
+
+//Função que inicializa o serviço do AddOn caso esteja parado, retorna true se o serviço foi iniciado ou já estava em execução e false caso tenha falhado ao iniciar o serviço.
+bool AddOn::startAddOn(){
+    string result = executarComandoShell("am start-foreground-service -n "+config->addonpacote+"/.ServiceWorker");
+    if(search_match(result, "done")){
+        return true;
+    }
+    return false;
+}
+
+//Trava a tarefa atual, exibe a progressão da tarefa do serviço externo e libera a Thread principal já com o resultado
+bool AddOn::iniciarSocketFeedback(bool &key){
+    bool result = false;
+    //Criando linha de feedback
+    cout << endl; //Essa linha é substituida pelo indicador de progressão da função barraProgresso
+    while (key)
+    {
+        int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        struct sockaddr_un addr;
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        const char* socket_name = mainCfg->socketName.c_str();
+        std::strncpy(&addr.sun_path[1], socket_name, strlen(socket_name));
+        // O comprimento deve incluir apenas os bytes usados
+        int len = offsetof(struct sockaddr_un, sun_path) + strlen(socket_name) + 1;
+        if (::bind(server_fd, (struct sockaddr*)&addr, len) == -1) {
+            perror("bind feedback failed");
+            return false;
+        }
+        if (listen(server_fd, 10) < 0) {
+            perror("listen failed");
+            return false;
+        }
+        int client_fd = accept(server_fd, nullptr, nullptr);
+        if (client_fd < 0) {
+            perror("accept failed");
+            return false;
+        }
+        char buffer[1024] = {0};
+        size_t bytes_read;
+        while ((bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0)) > 0 && key) {
+            buffer[bytes_read] = '\0';
+            string dadosJSON = buffer;
+            if(mainCfg->formatoJSON){
+                cout << dadosJSON << endl;
+            }else if(stringContains(&dadosJSON, "DOWNLOADING")){
+                string porcentagemStr = "0";
+                int porcentagem;
+                string message = ""; //Texto do que está acontecendo
+                string size = ""; //Tamanho do arquivo (KB/MB/GB/etc..)
+                //JSON para parse:
+                //"DOWNLOADING" : { "percent" : "0", "message" : "Baixando com.termux.apk", "size" : "109,60 MB" }
+                stringReplace(&dadosJSON, "\"DOWNLOADING\":", "");
+                try{
+                    json j = json::parse(dadosJSON);
+                    if(j.contains("percent")) j.at("percent").get_to(porcentagemStr);
+                    if(j.contains("message")) j.at("message").get_to(message);
+                    if(j.contains("size")) j.at("size").get_to(size);
+                    porcentagem = atoi(porcentagemStr.c_str());
+                }catch(...){
+                }
+                barraProgresso(porcentagem, message+" "+size);
+            }
+            if(stringContains(&dadosJSON, "END")){
+                string status;
+                string message;
+                //JSON para parse:
+                //"END":{"status":"sucess/fail", "message":"Terminou com sucesso"}
+                stringReplace(&dadosJSON, "\"END\":", "");
+                try{
+                    json j = json::parse(dadosJSON);
+                    if(j.contains("status")) j.at("status").get_to(status);
+                    if(j.contains("message")) j.at("message").get_to(message);
+                }catch(...){
+                    key=false;
+                }
+                if(status=="checking" && !mainCfg->formatoJSON){
+                    cout << "\033[A\33[2K\r";
+                    cout.flush();
+                    NLINDINFO(message);
+                }else if(status=="success"){
+                    result=true;
+                    if(!mainCfg->formatoJSON) NLIND(message);
+                    key=false;
+                }else if(status=="fail"){
+                    result=false;
+                    if(!mainCfg->formatoJSON) NLINDERR(message);
+                    key=false;
+                }
+            }
+        }
+        
+        string dadosJSON = buffer;
+        close(client_fd);
+        close(server_fd);
+        result = true;
+    }
+    return result;
+}
+
+//Exibe uma barra de progresso na linha atual do terminal, a barra é atualizada a cada nova chamada da função, o texto é exibido ao lado da barra e a porcentagem é exibida ao final da barra.
+void AddOn::barraProgresso(int porcentagem, string texto){
+    try{
+        int larguraTerminal = obterLarguraTerminal();
+        int tamanhoPorcentagemInd = 4;
+        char barra = '[';
+        char final = ']';
+        char indicador = '#';
+        char espaco = ' ';
+        int tamanhoTextMenssagem = texto.length();
+        int tamanhoBarra = larguraTerminal - tamanhoTextMenssagem - tamanhoPorcentagemInd - 3;
+        string carregamento;
+        string carregamentorestante;
+        //Evita divisão por 0 que causa excessão em strings
+        if(porcentagem>0){
+            float tamanhopedaço = tamanhoBarra/100.0f;
+            string carregamentoTmp(int(porcentagem*tamanhopedaço)+1, indicador);
+            carregamento = carregamentoTmp;
+            int restante = tamanhoBarra - carregamento.length();
+            string carregamentorestanteTmp(restante, espaco);
+            carregamentorestante = carregamentorestanteTmp;
+        }else{
+            carregamento = "";
+            string carregamentorestanteTmp(tamanhoBarra, espaco);
+            carregamentorestante = carregamentorestanteTmp;
+        }
+        //Removendo linha atual
+        std::cout << "\033[A\33[2K\r";
+        std::cout.flush();
+        //Exibindo progressão
+        string resultado = texto + espaco + barra + carregamento+carregamentorestante+final+espaco+to_string(porcentagem)+"%";
+        cout << resultado << endl;
+    }catch(...){
+    }
+}
+
+//Coleção de funções utilitárias para o projeto
 namespace Utilitarios {
 
     //Equivalente ao getprop nativo do Android
@@ -439,6 +691,7 @@ namespace Utilitarios {
         }
     }
 
+    //Divide uma string em um vetor de strings com base em um caractere delimitador
     vector<string> stringSplit(std::string* str, char alvo){
         vector<string> arrayfinal;
         std::stringstream ss(*str);
@@ -449,6 +702,12 @@ namespace Utilitarios {
         return arrayfinal;
     }
 
+    //Verifica se uma string contém uma substring
+    bool stringContains(std::string* str, std::string alvo){
+        return str->find(alvo) != std::string::npos;
+    }
+
+    //Verifica se a saída é um terminal para decidir se deve usar cores ou não
     bool terminalColor(){
         return isatty(STDOUT_FILENO);
     }
@@ -513,6 +772,7 @@ namespace Utilitarios {
         return resultado;
     }
 
+    //Limpa a saída bruta do comando content query para obter apenas o conteúdo relevante (JSON)
     std::string limparSaidaContent(std::string bruto) {
         std::string chave = "json_data=";
         size_t pos = bruto.find(chave);
@@ -531,6 +791,7 @@ namespace Utilitarios {
         return jsonResult.substr(first, (last - first + 1));
     }
 
+    //Verifica se o pacote é compatível com a arquitetura do dispositivo, retorna true se for compatível ou se o pacote for universal (all) e false caso contrário.
     bool checarCompatibilidade(vector<string> abisPacote){
         if(abisPacote[0]=="all") return true;
         string abis = getProp("ro.product.cpu.abilist");
@@ -542,12 +803,14 @@ namespace Utilitarios {
         return false;
     }
 
+    //retorna o numero de caracteres que cabe na largura do terminal
     int obterLarguraTerminal() {
         struct winsize w;
         ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
         return w.ws_col;
     }
 
+    //Gera uma linha inteira de caracteres para preencher a largura do terminal, utilizada para separar seções de informações exibidas no terminal.
     std::string gerarLinhaSeparadora() {
         int largura = obterLarguraTerminal();
         if (largura <= 0) largura = 40; // Fallback caso ioctl falhe
@@ -555,6 +818,7 @@ namespace Utilitarios {
         return std::string(largura, LINHASEPARADORACHAR); 
     }
 
+    //Funções que criam indicadores customizados -----------
     void NLIND(std::string msg){
         if(terminalColor()){
             CNLIND(msg);
@@ -583,5 +847,58 @@ namespace Utilitarios {
         }else{
             NCNLINDINPUT(msg);
         }
+    }
+    //-----------------------------------------------------
+
+
+    //Se conecta com o LocalServerSocket do java e solicita a resposta para a função
+    string requisiçãoViaSocket(string SOCKETNAME, string function, bool aguardarResposta) {
+        int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (sock < 0) return "ERRO_SOCKET";
+
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+
+        // Define o primeiro byte como nulo (Abstract Namespace)
+        addr.sun_path[0] = '\0';
+        // Copia o nome logo após o nulo
+        memcpy(addr.sun_path + 1, SOCKETNAME.c_str(), SOCKETNAME.length());
+
+        // CÁLCULO DO TAMANHO REAL:
+        // offsetof(sun_path) nos dá o tamanho da estrutura até chegar na string.
+        // + 1 (para o \0 inicial) + o tamanho da string.
+        socklen_t len = offsetof(struct sockaddr_un, sun_path) + 1 + SOCKETNAME.length();
+
+        if (connect(sock, (struct sockaddr*)&addr, len) == -1) {
+            NLINDERR("INTERNAL_ERROR: ERRO_SOCKET_CONNECT_" + to_string(errno)); // Ex: 111, 13, etc.
+            close(sock);
+            return "";
+        }
+
+        // Enviar comando com \n
+        string cmd = function + "\n";
+        send(sock, cmd.c_str(), cmd.length(), 0);
+        string resposta;
+        // Receber resposta se for necessário
+        if(aguardarResposta){
+            char buffer[4096]; // Buffer de leitura temporário
+            //leitura com chunks de buffer para respostas grandes
+            int bytes_read;
+            while((bytes_read = recv(sock, buffer, sizeof(buffer)-1, 0)) > 0){
+                buffer[bytes_read] = '\0';
+                resposta.append(buffer);
+            }
+            if(bytes_read<0){
+                NLINDERR("INTERNAL_ERROR: ERRO_SOCKET_RECV_" + to_string(errno)); // Ex: 
+            }
+        }
+        close(sock);
+        return resposta;
+    }
+
+    //Função para exibir mensagens de erro em formato JSON, utilizada para manter a consistência do formato de saída quando a opção JSON é selecionada.
+    void printInfo(string tipo, string menssagem){
+        cout << "{\"type\":\""+tipo+"\",\"message\":\""+menssagem+"\"}" << endl; // Exemplo de saída: {"type":"error","message":"Pacote não encontrado"}
     }
 }

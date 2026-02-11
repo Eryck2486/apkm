@@ -43,7 +43,8 @@ struct Strings {
     INSTAL_CANCELADA,
     ADDON_INFOS,
     DADOS_PACOTE,
-    PAC_INCOMPATIVEL;
+    PAC_INCOMPATIVEL,
+    ERR_NO_REPOS;
 
     Strings(Config* config);
     std::string obterPermissãoTexto(std::string perm);
