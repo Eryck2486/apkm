@@ -46,10 +46,8 @@ DadosPacote::DadosPacote(string raizrepo, vector<string> dados){
     }else{
         this->endereço="ERRO_NO_ADDRESS_PROVIDED";
     }
-    json j = json::parse(dados[6]);
-    if(j.is_array()){j.get_to(arquiteturas);
     cout << "JSONARCHS: " << dados[6] << endl;
-    }
+
 }
 
 DadosPacote* DadosPacote::fromJson(string jsonstr){
