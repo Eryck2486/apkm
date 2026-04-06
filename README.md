@@ -21,3 +21,19 @@ Avisos:
 
     O binário oficial foi compilado e testado no Android 16, outras versões ainda não foram testadas, versões de 32 bits não são suportadas oficialmente.
 
+Como compilar:
+    O processo de compilação tem três formas de ser feita, a compilação das bibliotecas com o binário (Execultar sem aspas) exemplo para arm de 64 bits: 
+    ```make build arch=aarch64``` gera as bibliotecas, binário do apkm e o módulo magisk
+
+    A segunda forma só funciona após a primeira ser concluida pela primeira vez, ela é util quando é conveniente recompilar apenas o binário do apkm sem recompilar as bibliotecas auxiliares para testes rápidos, se a arquitetura mudar é necessário recompilar as bibliotecas novamente:
+    ```make build_apkm arch=aarch64``` gera apenas o binário do apkm e o módulo magisk
+
+    A terceira forma gera o módulo magisk diretamente:
+    ```make build_module``` gera o módulo magisk
+
+Bibliotecas/toolchins utilizadas:
+    json: https://github.com/nlohmann/json/
+    libzip: https://github.com/nih-at/libzip
+    libcurl https://github.com/curl/curl
+    openssl https://github.com/openssl/openssl
+    Android NDK: https://dl.google.com/android/repository/android-ndk-r29-linux.zip?hl=pt-br
