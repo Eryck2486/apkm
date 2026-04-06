@@ -7,7 +7,11 @@ Como funciona:
     O gerenciador se chama apkm que é uma abreviação de Android Package Manager
     O gerenciador é um programa de terminal sem UI, ou seja, é necessário o acesso a um emulador de terminal ou acesso ao ADB, para ter uma UI instale o APKM Store.
     
-    Digite "apkm --help" (Sem aspas) no terminal para obter os comandos disponíveis.
+    Digite: 
+    ```bash
+    apkm --help
+    ```
+    no terminal para obter os comandos disponíveis.
     
     Addons ou servidores de repositório são necessários para ter pacotes disponíveis.
     
@@ -23,13 +27,20 @@ Avisos:
 
 Como compilar:
     O processo de compilação tem três formas de ser feita, a compilação das bibliotecas com o binário (Execultar sem aspas) exemplo para arm de 64 bits: 
-    ```make build arch=aarch64``` gera as bibliotecas, binário do apkm e o módulo magisk
+    ```bash 
+    make build arch=aarch64
+    ``` 
+    gera as bibliotecas, binário do apkm e o módulo magisk
 
     A segunda forma só funciona após a primeira ser concluida pela primeira vez, ela é util quando é conveniente recompilar apenas o binário do apkm sem recompilar as bibliotecas auxiliares para testes rápidos, se a arquitetura mudar é necessário recompilar as bibliotecas novamente:
-    ```make build_apkm arch=aarch64``` gera apenas o binário do apkm e o módulo magisk
+    ```bash
+    make build_apkm arch=aarch64
+    ``` gera apenas o binário do apkm e o módulo magisk
 
     A terceira forma gera o módulo magisk diretamente:
-    ```make build_module``` gera o módulo magisk
+    ```bash
+    make build_module
+    ``` gera o módulo magisk
 
 Bibliotecas/toolchins utilizadas:
     json: https://github.com/nlohmann/json/
