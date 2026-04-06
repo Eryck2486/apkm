@@ -1,5 +1,5 @@
 # apkm
-Módulo Magisk/KernelSU que oferece um gerenciador de pacotes online para Android AOSP com acesso a repositórios e AddOns nativamente para facilitar sideloading de Apps de quaisquer fontes da Web
+Módulo Magisk/KernelSU que oferece um gerenciador de pacotes online para Android com acesso a repositórios e AddOns nativamente para facilitar sideloading de Apps de quaisquer fontes da Web
 
 O objetivo do projeto é criar um ambiente livre das restrições da API do Google, recomenda-se o uso no Android AOSP, mas funciona perfeitamente em dispositivos certificados desde que ele esteja execultando um gerenciador root baseado no Magisk root.
 
@@ -51,8 +51,8 @@ gera o módulo magisk
 
 
 ## Bibliotecas/toolchins utilizadas:
-    json: https://github.com/nlohmann/json/
-    libzip: https://github.com/nih-at/libzip
-    libcurl https://github.com/curl/curl
-    openssl https://github.com/openssl/openssl
-    Android NDK: https://dl.google.com/android/repository/android-ndk-r29-linux.zip?hl=pt-br
+json: https://github.com/nlohmann/json/
+libzip: https://github.com/nih-at/libzip
+libcurl https://github.com/curl/curl
+openssl https://github.com/openssl/openssl
+Android NDK: https://dl.google.com/android/repository/android-ndk-r29-linux.zip?hl=pt-br
