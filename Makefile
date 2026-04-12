@@ -250,6 +250,5 @@ build_module:
 # Clean target: removes generated files
 clean:
 	$(RM) $(TARGET) $(OBJS)
-	$(RM) -rf include/pugixml/build/
-	$(RM) -rf include/pugixml/lib/
+	$(RM) -rf include/
 	$(RM) -rf build/
