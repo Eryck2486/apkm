@@ -28,6 +28,8 @@ int Main::main(int argc, char* argv[]) {
         if(config->reposglobais.size()>0 || config->addonsdinamicos.size()>0){
             switch(config->instrução){
                 case 1:
+                    gerenciador->updatePacotes();
+                    retorno = 0;
                     break;
                 case 2:
                     if(manager->adicionarRepositório()){
@@ -59,11 +61,6 @@ int Main::main(int argc, char* argv[]) {
                     break;
                 case 8:
                     if(gerenciador->desinstalarPacotes()){
-                        retorno = 0;
-                    }
-                    break;
-                case 9:
-                    if(gerenciador->upgradePacotes()){
                         retorno = 0;
                     }
                     break;

@@ -229,30 +229,30 @@ Config::Config(int argc, char* argv[]){
         //Swaitch acionado apos identificar o comando principal (Diferente de zero)
         switch(instrução){
             case 1:
-            {
-                //Nenhum argumento adicional esperado
-            }
-            break;
-            case 2:
-            {
-                url=argstr;
-            }
-            break;
-            case 4:
-            {//A seleção entre listar repositórios ou addons acontece aqui
-                if(argstr=="repos")
                 {
-                    instrução=4;
-                }else if(argstr=="addons"){
-                    instrução=5;
+                    //Nenhum argumento adicional esperado
                 }
-            }
-            break;
+                break;
+            case 2:
+                {
+                    url=argstr;
+                }
+                break;
+            case 4:
+                {//A seleção entre listar repositórios ou addons acontece aqui
+                    if(argstr=="repos")
+                    {
+                        instrução=4;
+                    }else if(argstr=="addons"){
+                        instrução=5;
+                    }
+                }
+                break;
             case 3:case 6: case 7: case 8:
-            {
-                nomes.push_back(argstr);
-            }
-            break;
+                {
+                    nomes.push_back(argstr);
+                }
+                break;
             //Primeira passagem, identifica o comando
             default:
             {
@@ -270,8 +270,6 @@ Config::Config(int argc, char* argv[]){
                     instrução=7;
                 }else if(argstr=="uninstall"){
                     instrução=8;
-                }else if(argstr=="upgrade"){
-                    instrução=9;
                 }else{
                     comandoInvalido=argstr;
                 }

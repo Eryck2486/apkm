@@ -36,11 +36,13 @@ LIBZIP_INST=$(WORKDIR)/include/libzip/build_output
 
 ANDROIDAPILEVEL=$(api)
 ARCHITECTURE=$(arch)
+LIBZIP_ARCH=$(ARCHITECTURE)
 ifeq ($(ARCHITECTURE),arm64)
     NDK_ARCH=aarch64
     TOOLCHAINNAME=android
     OPENSSL_TARGET=android-arm64
     SPECIFIC_LIBS="-lssl"
+	LIBZIP_ARCH=arm64-v8a
 else ifeq ($(ARCHITECTURE),x86)
     NDK_ARCH=i686
 	TOOLCHAINNAME=android
@@ -189,10 +191,10 @@ prepare: clean
 		cd include; \
 		if [ ! -e libzip ]; then git clone $(LIBZIPREPO); fi; \
 		cd libzip; \
-		mkdir -p build && cd build; \
+		mkdir -p build; \
 		PATH=$(PATH) \
 		AR=$(LLVMAR) \
-		CC="$(CC)" \
+		CC=$(CC) \
 		NM=$(LLVMNM) \
 		LD=$(LD) \
 		STRIP=$(STRIP) \
@@ -200,9 +202,9 @@ prepare: clean
 		CCFLAGS="-I$(OPENSSL_INST)/include $(ARGUMENTOSPADROES)" \
 		RANLIB=$(LLVMRANLIB) \
 		ANDROID_NDK_ROOT=$(ANDROIDNDKROOT) \
-		cmake .. \
+		cmake \
 			-DCMAKE_TOOLCHAIN_FILE=$(ANDROIDNDKROOT)/build/cmake/android.toolchain.cmake \
-			-DANDROID_ABI=$(ARCHITECTURE) \
+			-DANDROID_ABI=$(LIBZIP_ARCH) \
 			-DANDROID_PLATFORM=android-$(ANDROIDAPILEVEL) \
 			-DBUILD_SHARED_LIBS=OFF \
 			-DCMAKE_INSTALL_PREFIX=$(LIBZIP_INST) \
@@ -226,7 +228,6 @@ prepare: clean
 			-DCMAKE_INSTALL_LIBDIR=lib \
 			-DCMAKE_INSTALL_INCLUDEDIR=include \
 			-DCMAKE_INSTALL_BINDIR=bin; \
-		cd ..; \
 		make -j$(nproc); \
 		cd ../../../; \
 		echo "\n libzip Configurado"; \

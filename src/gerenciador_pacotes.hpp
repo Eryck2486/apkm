@@ -23,7 +23,7 @@ public:
     void pesquisar();
     bool prepararInstalarPacotes(std::vector<std::string> nomes);
     bool desinstalarPacotes();
-    bool upgradePacotes();
+    bool updatePacotes();
 private:
     Config* configs;
     Repomanager* repomanager;

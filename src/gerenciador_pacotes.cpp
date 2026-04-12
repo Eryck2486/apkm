@@ -402,7 +402,7 @@ std::vector<std::string> GerenciadorPacotes::extrairStringsAxml(const std::vecto
     return strings;
 }
 
-bool GerenciadorPacotes::upgradePacotes(){
+bool GerenciadorPacotes::updatePacotes(){
     vector<AddOn*> addonsToUpdate = vector<AddOn*>();
     for(AddOn* addon : configs->addonsdinamicos){
         if(addon->getConfig()){
