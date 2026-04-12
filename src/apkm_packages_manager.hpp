@@ -18,6 +18,7 @@ class PackageInfo
         std::string getAppName();
         std::string getPackage();
         bool versionIsNewerThan(PackageInfo* other);
+        bool versionIsNewerThan(long other);
     private:
         std::string package;
         std::string appName;

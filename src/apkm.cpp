@@ -387,24 +387,27 @@ vector<AddOn*> AddOn::CarregarTodos(Config* config){
 //Inicia o processo de busca de atualizações dos pacotes instalados
 std::vector<PackageInfo*> AddOn::getPackagesUpdatesFromJSON(std::string jsonstr){
     vector<PackageInfo*> updates;
-    string response = Call("getUpdates="+jsonstr, true);
+    string jsonstrLimpa = jsonstr;
+    stringReplace(&jsonstrLimpa, "\n", "&nl"); // Remove quebras de linha para evitar problemas de formatação
+    string response = Call("getUpdates="+jsonstrLimpa, true);
     vector<string> dadosPacotes = stringSplit(&response, '\n');
     for(string pacoteJson : dadosPacotes){
-        try
-        {
-            //{"package":"com.karaoke.play","appName":"KARAOKE PLAY","vCode":2,"vName":"3.0"}
-            json j = json::parse(pacoteJson);
-            string package = j["package"];
-            string appName = j["appName"];
-            long versionCode = j["vCode"];
-            string versionName = j["vName"];
-            PackageInfo* pacoteInfo = new PackageInfo(package, appName, versionName, versionCode);
-            updates.push_back(pacoteInfo);
-        }
-        catch(exception e)
-        {
-            std::cerr << "Erro ao processar pacote: " << pacoteJson << std::endl;
-            std::cerr << "Exceção: " << e.what() << std::endl;
+        if(pacoteJson!="" && pacoteJson.length()>5){
+            try{
+                //{"package":"com.karaoke.play","appName":"KARAOKE PLAY","vCode":2,"vName":"3.0"}
+                json j = json::parse(pacoteJson);
+                string package = j["package"];
+                string appName = j["appName"];
+                long versionCode = j["vCode"];
+                string versionName = j["vName"];
+                PackageInfo* pacoteInfo = new PackageInfo(package, appName, versionName, versionCode);
+                updates.push_back(pacoteInfo);
+            }
+            catch(exception e)
+            {
+                std::cerr << "Erro ao processar pacote: " << pacoteJson << std::endl;
+                std::cerr << "Exceção: " << e.what() << std::endl;
+            }
         }
     }
     return updates;

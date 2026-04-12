@@ -52,7 +52,8 @@ struct Strings {
     CHECKING_FOR_APP_UPGRADES,
     QUEST_PACOTES_UPGRADE,
     PACOTES_ATUALIZADOS,
-    PACOTES_N_ATUALIZADOS;
+    PACOTES_N_ATUALIZADOS,
+    SEM_ATUALIZACOES;
 
     std::vector<std::string> obterString(nlohmann::json* stringsJson, std::string sttr);
     std::vector<std::string> obterStringEn(std::string sttr);

@@ -21,7 +21,7 @@ class GerenciadorPacotes
 public:
     GerenciadorPacotes(Config* config, Repomanager* repomanager) : configs(config), repomanager(repomanager) {}
     void pesquisar();
-    bool prepararInstalarPacotes();
+    bool prepararInstalarPacotes(std::vector<std::string> nomes);
     bool desinstalarPacotes();
     bool upgradePacotes();
 private:
@@ -36,5 +36,5 @@ private:
     bool apkInstaller(std::filesystem::path apkPath, std::string pacote, Config* configs);
     static bool versionComparer(std::string instVer, std::string ActVer);
     void startAddOnsUpgrade(std::vector<AddOn*> addonsToUpdate);
-    void startAppsUpgrade(std::vector<DadosPacote*> pacotesToUpdate);
+    void startAppsUpgrade(std::unordered_map<std::string, PackageInfo*> pacotesToUpdate);
 };

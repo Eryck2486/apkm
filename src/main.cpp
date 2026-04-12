@@ -53,7 +53,7 @@ int Main::main(int argc, char* argv[]) {
                     retorno = 0;
                     break;
                 case 7:
-                    if(gerenciador->prepararInstalarPacotes()){
+                    if(gerenciador->prepararInstalarPacotes(config->nomes)){
                         retorno = 0;
                     }
                     break;

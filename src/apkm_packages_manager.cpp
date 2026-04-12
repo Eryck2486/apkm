@@ -32,6 +32,10 @@ bool PackageInfo::versionIsNewerThan(PackageInfo* other){
     return this->versionCode > other->getVersionCode();
 }
 
+bool PackageInfo::versionIsNewerThan(long other){
+    return this->versionCode > other;
+}
+
 //Retorna o versionName do pacote, que é a versão legível para humanos, como "1.0.0" ou "2.5-beta", ao contrário do versionCode que é um número inteiro utilizado para controle de versões.
 string PackageInfo::getVersionName(){
     return this->versionName;

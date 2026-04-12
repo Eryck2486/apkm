@@ -43,7 +43,8 @@
         "CHECKING_FOR_APP_UPGRADES": ["Verificando por atualizações de apps..."],
         "QUEST_PACOTES_UPGRADE": ["Os seguintes apps possuem atualizações disponíveis: ","Deseja atualizar agora? (s/n): "],
         "PACOTES_ATUALIZADOS": ["Os seguintes apps foram atualizados: "],
-        "PACOTES_N_ATUALIZADOS": ["Erro ao atualizar os seguintes apps: "]
+        "PACOTES_N_ATUALIZADOS": ["Erro ao atualizar os seguintes apps: "],
+        "SEM_ATUALIZACOES": ["Todos os pacotes estão atualizados."]
     },
     "permissoes_texto": {
         "android.permission.INTERNET": "Ter Acesso á internet.",

@@ -70,6 +70,7 @@ Strings::Strings(Config* config){
     QUEST_PACOTES_UPGRADE = obterString(&stringsJson, "QUEST_PACOTES_UPGRADE");
     PACOTES_ATUALIZADOS = obterString(&stringsJson, "PACOTES_ATUALIZADOS");
     PACOTES_N_ATUALIZADOS = obterString(&stringsJson, "PACOTES_N_ATUALIZADOS");
+    SEM_ATUALIZACOES = obterString(&stringsJson, "SEM_ATUALIZACOES");
     
     if(j!=json() && j.contains("permissoes_texto")){
         auto permissoesJson = j["permissoes_texto"];
@@ -208,6 +209,8 @@ std::vector<std::string> Strings::obterStringEn(std::string sttr){
         return { "The following apps were updated: " };
     }else if(sttr == "PACOTES_N_ATUALIZADOS"){
         return { "Error updating the following apps: " };
+    }else if(sttr == "SEM_ATUALIZACOES"){
+        return { "All packages are up to date." };
     }
     return { "" };
 }

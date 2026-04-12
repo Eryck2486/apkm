@@ -114,8 +114,8 @@ void GerenciadorPacotes::mostrarListaResultados(vector<DadosPacote*> pacotes, Co
 }
 
 //Verifica e instala os pacotes listados em configs->nomes
-bool GerenciadorPacotes::prepararInstalarPacotes(){
-    for(string pacoteNome : configs->nomes){
+bool GerenciadorPacotes::prepararInstalarPacotes(vector<string> nomes){
+    for(string pacoteNome : nomes){
         bool encontrado = false;
         if(pacoteNome.find(":") == std::string::npos){
             for(RemoteRepoConfig* repoconfig : configs->reposglobais){
@@ -438,34 +438,70 @@ bool GerenciadorPacotes::upgradePacotes(){
     //Popula a lista de pacotes e obtem o JSON de pacotes instalados para a verificação via AddOn
     vector<PackageInfo*> pacotesInstalados = vector<PackageInfo*>();
     string retorno = helper->getPackagesInfos(pacotesInstalados);
-    cout << "Pacotes instalados: " << retorno << endl;
     delete helper;
     unordered_map<string,PackageInfo*> pacotesAtualizaveis = unordered_map<string,PackageInfo*>();
     for(RemoteRepoConfig* repoconfig : configs->reposglobais){
         for(DadosPacote* pacote : repoconfig->pacotes){
             for(PackageInfo* pacoteInstalado : pacotesInstalados){
                 if(pacote->pacote==pacoteInstalado->getPackage()){
-                    if(pacote->versionIsNewerThan(pacoteInstalado)){
-                        pacotesInfos[pacote->pacote]=pacoteInstalado;
+                    if(pacoteInstalado->versionIsNewerThan(pacote->versionCode)){
                         pacotesAtualizaveis[pacote->pacote]=new PackageInfo(pacote->pacote, pacote->nome, pacote->versão, 0);
                     }
                 }
             }
         }
     }
+
     for(AddOn* addon : configs->addonsdinamicos){
         if(addon->getConfig()){
             vector<PackageInfo*> pacotesAtualizaveisTmp = addon->getPackagesUpdatesFromJSON(retorno);
-            for(PackageInfo* pacote : pacotesAtualizaveisTmp){
-                string pkgName = stringSplit(&pacote->getPackage(), ':')[1];
-                if(pacotesInfos.find(pkgName)!=pacotesInfos.end()){
-                    pacotesAtualizaveis[pkgName]=pacote;
-                }else if(pacote->versionIsNewerThan(pacotesAtualizaveis[pkgName])){
-                    pacotesAtualizaveis[pkgName]=pacote;
+            if(pacotesAtualizaveisTmp.size()>0){
+                for(PackageInfo* pacote : pacotesAtualizaveisTmp){
+                    if(pacote!=nullptr){
+                        string pkgNameTmp = pacote->getPackage();
+                        string pkgName;
+                        if(stringContains(&pkgNameTmp, ":")){
+                            vector<string> split = stringSplit(&pkgNameTmp, ':');
+                            pkgName=split[1];
+                        }else pkgName=pkgNameTmp;
+                        cout << "VCode do pacote " << pkgName << ": " << pacote->getVersionCode() << endl;
+                        if(pacotesInfos.size()==0){
+                            pacotesAtualizaveis.insert_or_assign(pkgName, pacote);
+                        }else if(pacotesInfos.find(pkgName)!=pacotesInfos.end()){
+                            pacotesAtualizaveis.insert_or_assign(pkgName, pacote);
+                        }else if(pacote->versionIsNewerThan(pacotesAtualizaveis[pkgName])){
+                            pacotesAtualizaveis.insert_or_assign(pkgName, pacote);
+                        }
+                    }
                 }
             }
         }
     }
+    string pacotesList;
+    for(auto it = pacotesAtualizaveis.begin(); it != pacotesAtualizaveis.end(); ++it) {
+        if(pacotesList==""){
+            pacotesList=it->first+" ("+it->second->getVersionName()+")"+"\n";
+        }else pacotesList.append(it->first).append(" (").append(it->second->getVersionName()).append(")").append("\n");
+    }
+    if(pacotesAtualizaveis.size()>0){
+        if(!configs->formatoJSON){
+            NLIND(configs->stringsidioma->QUEST_PACOTES_UPGRADE[0]+"\n"+pacotesList+"\n"+configs->stringsidioma->QUEST_PACOTES_UPGRADE[1]);
+            string resposta;
+            getline(cin, resposta);
+            if(resposta!="s" && resposta!="S" && resposta!="y" && resposta!="Y"){
+                NLIND(configs->stringsidioma->INSTAL_CANCELADA[0]+pacotesList+configs->stringsidioma->INSTAL_CANCELADA[1]);
+                return true;
+            }else{
+                startAppsUpgrade(pacotesAtualizaveis);
+            }
+        }else startAppsUpgrade(pacotesAtualizaveis);
+    }
+
+    if(pacotesAtualizaveis.size()==0){
+        if(!configs->formatoJSON) NLIND(configs->stringsidioma->SEM_ATUALIZACOES[0]);
+        else printInfo("INFO", configs->stringsidioma->SEM_ATUALIZACOES[0]);
+    }
+
     return true;
 }
 
@@ -495,12 +531,16 @@ void GerenciadorPacotes::startAddOnsUpgrade(vector<AddOn*> addonsToUpdate){
     }
 }
 
-void GerenciadorPacotes::startAppsUpgrade(vector<DadosPacote*> pacotesToUpdate){{
-    for(DadosPacote* pacote : pacotesToUpdate){
-        for(RemoteRepoConfig* repoconfig : configs->reposglobais){
-            for(DadosPacote* repoPacote : repoconfig->pacotes){
-                
-            }
-        }
+void GerenciadorPacotes::startAppsUpgrade(unordered_map<string,PackageInfo*> pacotesToUpdate){
+    configs->assumirSim=true;
+    vector<string> pacotesNomes = vector<string>();
+    for(auto it = pacotesToUpdate.begin(); it != pacotesToUpdate.end(); ++it){
+        pacotesNomes.push_back(it->second->getPackage());
+    }
+    prepararInstalarPacotes(pacotesNomes);
+    if(!configs->formatoJSON){
+        NLIND(configs->stringsidioma->PACOTES_ATUALIZADOS[0]);
+    }else{
+        printInfo("INFO", configs->stringsidioma->PACOTES_ATUALIZADOS[0]);
     }
 }
