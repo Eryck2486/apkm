@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <thread>
+#include "apkm_packages_manager.hpp"
 
 using json = nlohmann::json;
 using namespace std;
@@ -64,6 +65,7 @@ DadosPacote* DadosPacote::fromJson(string jsonstr){
         if(j.contains("nome")) j.at("nome").get_to(pacote->nome);
         if(j.contains("descricao")) j.at("descricao").get_to(pacote->descrição);
         if(j.contains("versao")) j.at("versao").get_to(pacote->versão);
+        if(j.contains("versionCode")) j.at("versionCode").get_to(pacote->versionCode);
         if(j.contains("sha256sumOrPGPLink")) j.at("sha256sumOrPGPLink").get_to(pacote->sha256sum);
         if(j.contains("endereco")) j.at("endereco").get_to(pacote->endereço);
         if(j.contains("arquiteturas") && j["arquiteturas"].is_array()) j.at("arquiteturas").get_to(pacote->arquiteturas);  
@@ -382,6 +384,32 @@ vector<AddOn*> AddOn::CarregarTodos(Config* config){
     return addons;
 }
 
+//Inicia o processo de busca de atualizações dos pacotes instalados
+std::vector<PackageInfo*> AddOn::getPackagesUpdatesFromJSON(std::string jsonstr){
+    vector<PackageInfo*> updates;
+    string response = Call("getUpdates="+jsonstr, true);
+    vector<string> dadosPacotes = stringSplit(&response, '\n');
+    for(string pacoteJson : dadosPacotes){
+        try
+        {
+            //{"package":"com.karaoke.play","appName":"KARAOKE PLAY","vCode":2,"vName":"3.0"}
+            json j = json::parse(pacoteJson);
+            string package = j["package"];
+            string appName = j["appName"];
+            long versionCode = j["vCode"];
+            string versionName = j["vName"];
+            PackageInfo* pacoteInfo = new PackageInfo(package, appName, versionName, versionCode);
+            updates.push_back(pacoteInfo);
+        }
+        catch(exception e)
+        {
+            std::cerr << "Erro ao processar pacote: " << pacoteJson << std::endl;
+            std::cerr << "Exceção: " << e.what() << std::endl;
+        }
+    }
+    return updates;
+}
+
 //Carrega a configuração do AddOn a partir da instância da biblioteca dinâmica (Determina se é estático ou dinâmico)
 bool AddOn::getConfig(){
     vector<string> addonconfig = ContentQuery("getConfig");
@@ -442,42 +470,8 @@ std::vector<DadosPacote*> AddOn::Buscar(string pesquisa){
 //status é "success" para pacote válido e obtido e "fail" para pacote não encontrado.
 //deve retornar [arquivo.apk, com.pacote.exemplo] diretório do apk e o id do pacote.
 vector<string> AddOn::getPackage(string pacotestr){
-    vector<string> resultado = std::vector<string>();
-    //Inicia call em thread
-    string response;
-    //Cria uma thread para o socket principal
-    bool ciclo = true;
-    std::thread processo = std::thread([&](){
-        string pacotestrtmp = pacotestr;
-        response = Call("getPackage="+pacotestrtmp, true);
-        //Garante o encerramento do socket de feedBack criado para a variável estado caso a comunicação com o AddOn falhe
-        if(response==""){
-            response="{\"status\":\"fail\", \"packageFile\":\"\", \"package\":\"\"}";
-        }
-        ciclo=false;
-    });
-    processo.detach();
-    bool estado = iniciarSocketFeedback(ciclo); //recebe e exibe o estado da atividade atual e aguarda o status de erro ou falha antes de avançar
-    if(!estado){
-        return resultado;
-    }
-    vector<string> query = stringSplit(&response, '\n');
-    string jsonstr = query[0];
-    try{
-        json j = json::parse(jsonstr);
-        string status;
-        if(j.contains("status")) j.at("status").get_to(status);
-        if(status=="success"){
-            string pacoteAddr;
-            string pacoete;
-            if(j.contains("packageFile")) j.at("packageFile").get_to(pacoteAddr);
-            if(j.contains("package")) j.at("package").get_to(pacoete);
-            resultado.push_back(pacoteAddr);
-            resultado.push_back(pacoete);
-        }
-    }catch(...){
-    }
-    return resultado;
+    string request = "getPackage="+pacotestr;
+    return initDownloadComunication(request);
 }
 
 //Utilizado quando um AddOn é do tipo estático (apenas gera o RemoteRepoConfig)
@@ -506,24 +500,8 @@ vector<string> AddOn::ContentQuery(std::string requisição){
 
 //Solicita um pacote de atualização do AddOn (self-update), recebe {"status":"success/fail", "packageFile":"/data/user/0/com.apkm.addon.exemplo/cache/arquivo.apk", "package":"com.pacote.exemplo"} ou {"status":"fail", "packageFile":"", "package":""} se o pacote não existe ou ocorreu um erro.
 vector<string> AddOn::getAddonUpdate(){
-    vector<string> resultado = std::vector<string>();
-    vector<string> query = ContentQuery("getUpdate");
-    string jsonstr = query[0];
-    try{
-        json j = json::parse(jsonstr);
-        string status;
-        if(j.contains("status")) j.at("status").get_to(status);
-        if(status=="success"){
-            string pacoteAddr;
-            string pacoete;
-            if(j.contains("packageFile")) j.at("packageFile").get_to(pacoteAddr);
-            if(j.contains("package")) j.at("package").get_to(pacoete);
-            resultado.push_back(pacoteAddr);
-            resultado.push_back(pacoete);
-        }
-    }catch(...){
-    }
-    return resultado;
+    string rquest = "getUpdate";
+    return initDownloadComunication(rquest);
 }
 
 //envia uma requisição via socket para o AddOn e aguarda a resposta caso aguardarResposta seja true, caso contrário apenas envia a requisição sem aguardar resposta (utilizado para requisições que não necessitam de resposta como iniciar o serviço do AddOn)
@@ -664,6 +642,44 @@ void AddOn::barraProgresso(int porcentagem, string texto){
         cout << resultado << endl;
     }catch(...){
     }
+}
+
+vector<string> AddOn::initDownloadComunication(string request){
+    vector<string> resultado = std::vector<string>();
+    //Inicia call em thread
+    string response;
+    //Cria uma thread para o socket principal
+    bool ciclo = true;
+    std::thread processo = std::thread([&](){
+        response = Call(request, true);
+        //Garante o encerramento do socket de feedBack criado para a variável estado caso a comunicação com o AddOn falhe
+        if(response==""){
+            response="{\"status\":\"fail\", \"packageFile\":\"\", \"package\":\"\"}";
+        }
+        ciclo=false;
+    });
+    processo.detach();
+    bool estado = iniciarSocketFeedback(ciclo); //recebe e exibe o estado da atividade atual e aguarda o status de erro ou falha antes de avançar
+    if(!estado){
+        return resultado;
+    }
+    vector<string> query = stringSplit(&response, '\n');
+    string jsonstr = query[0];
+    try{
+        json j = json::parse(jsonstr);
+        string status;
+        if(j.contains("status")) j.at("status").get_to(status);
+        if(status=="success"){
+            string pacoteAddr;
+            string pacoete;
+            if(j.contains("packageFile")) j.at("packageFile").get_to(pacoteAddr);
+            if(j.contains("package")) j.at("package").get_to(pacoete);
+            resultado.push_back(pacoteAddr);
+            resultado.push_back(pacoete);
+        }
+    }catch(...){
+    }
+    return resultado;
 }
 
 //Coleção de funções utilitárias para o projeto

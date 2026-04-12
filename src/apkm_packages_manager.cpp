@@ -17,8 +17,8 @@ using namespace std;
 using namespace Utilitarios;
 using json = nlohmann::json;
 
-PackageInfo::PackageInfo(std::string appName, std::string packageName, string versionName, string versionCode){
-    this->packageName=packageName;
+PackageInfo::PackageInfo(std::string package, std::string appName, string versionName, long versionCode){
+    this->package=package;
     this->versionName=versionName;
     this->versionCode=versionCode;
     this->appName=appName;
@@ -28,9 +28,8 @@ PackageInfo::~PackageInfo(){
 
 }
 
-//Retorna o nome do pacote, como "com.exemplo.app", que é a identificação única do aplicativo no sistema Android.
-string PackageInfo::getPackageName(){
-    return this->packageName;
+bool PackageInfo::versionIsNewerThan(PackageInfo* other){
+    return this->versionCode > other->getVersionCode();
 }
 
 //Retorna o versionName do pacote, que é a versão legível para humanos, como "1.0.0" ou "2.5-beta", ao contrário do versionCode que é um número inteiro utilizado para controle de versões.
@@ -39,13 +38,17 @@ string PackageInfo::getVersionName(){
 }
 
 //Retorna o versionCode do pacote como string, mesmo que seja um número, para facilitar a manipulação e exibição das informações.
-string PackageInfo::getVersionCode(){
+long PackageInfo::getVersionCode(){
     return this->versionCode;
 }
 
 //Retorna o nome do aplicativo associado ao pacote, ou seja, o nome que aparece para o usuário.
 string PackageInfo::getAppName(){
     return this->appName;
+}
+
+string PackageInfo::getPackage(){
+    return this->package;
 }
 
 
@@ -61,19 +64,24 @@ Helper::~Helper(){
 //Solicita as informações dos pacotes instalados no dispositivo, recebe um JSON com a estrutura {"packages":{"com.pacote.exemplo":{"appName":"Nome do App","vName":"Versão","vCode":123}}} e preenche o vetor de pacotes com as informações obtidas.
 string Helper::getPackagesInfos(vector<PackageInfo*> pacotes){
     string jsonResposta = requisiçãoViaSocket(SOCKETNAME,"getPackagesVersions", true);
-    try{
-        json resposta = json::parse(jsonResposta);
-        if(resposta.find("packages")!=resposta.end()){
-            if(resposta["packages"].is_object()){
-                for(auto it = resposta["packages"].begin(); it != resposta["packages"].end(); ++it){
-                    PackageInfo* pacote = new PackageInfo(it.value()["appName"], it.key(), it.value()["vName"], to_string(it.value()["vCode"]));
-                    pacotes.push_back(pacote);
-                }
-            }
+    vector<string> dadosPacotes = stringSplit(&jsonResposta, '\n');
+    for(string pacoteJson : dadosPacotes){
+        try
+        {
+            //{"package":"com.karaoke.play","appName":"KARAOKE PLAY","vCode":2,"vName":"3.0"}
+            json j = json::parse(pacoteJson);
+            string package = j["package"];
+            string appName = j["appName"];
+            long versionCode = j["vCode"];
+            string versionName = j["vName"];
+            PackageInfo* pacoteInfo = new PackageInfo(package, appName, versionName, versionCode);
+            pacotes.push_back(pacoteInfo);
         }
-    }catch(json::exception& e){
-        NLINDERR(jsonResposta);
-        NLINDERR(e.what());
+        catch(exception e)
+        {
+            std::cerr << "Erro ao processar pacote: " << pacoteJson << std::endl;
+            std::cerr << "Exceção: " << e.what() << std::endl;
+        }
     }
     return jsonResposta;
 }

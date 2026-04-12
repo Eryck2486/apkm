@@ -35,7 +35,15 @@
         "ADDON_INFOS": ["Exibindo informações do AddOn: ", "Nome: ","Fornecedor: ", "Dinâmico: ","Descrição: ", "versão: ", "Atualizado: "],
         "DADOS_PACOTE": ["ID: ","Nome: ", "Descrição: ", "Versão: ", "Origem: "],
         "PAC_INCOMPATIVEL": ["[INCOMPATIVEL: ","]"],
-        "ERR_NO_REPOS": ["Nenhum repositório encontrado."]
+        "ERR_NO_REPOS": ["Nenhum repositório encontrado."],
+        "QUEST_ADDONS_UPGRADE": ["Existem atualizações disponíveis para os seguintes AddOns: ","Deseja atualizar agora? (s/n): "],
+        "ADDON_ATUALIZADO": ["AddOn \"","\" atualizado com sucesso!"],
+        "ADDON_N_ATUALIZADO": ["Erro ao atualizar o AddOn \"","\"."],
+        "CHECKING_FOR_ADDON_UPGRADES": ["Verificando por atualizações de AddOns..."],
+        "CHECKING_FOR_APP_UPGRADES": ["Verificando por atualizações de apps..."],
+        "QUEST_PACOTES_UPGRADE": ["Os seguintes apps possuem atualizações disponíveis: ","Deseja atualizar agora? (s/n): "],
+        "PACOTES_ATUALIZADOS": ["Os seguintes apps foram atualizados: "],
+        "PACOTES_N_ATUALIZADOS": ["Erro ao atualizar os seguintes apps: "]
     },
     "permissoes_texto": {
         "android.permission.INTERNET": "Ter Acesso á internet.",

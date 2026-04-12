@@ -17,30 +17,20 @@ public class ApkmPckageManager {
             PackageInfo pkg = packages.get(i);
             boolean isSystem = (pkg.applicationInfo.flags & FLAG_SYSTEM) != 0;
             boolean isUpdatedSystem = (pkg.applicationInfo.flags & FLAG_UPDATED_SYSTEM_APP) != 0;
-            //Comentando para testar estouro de buffer
-            //if (!isSystem || isUpdatedSystem){
-                // Agora o loadLabel FUNCIONA porque temos o contexto!
+            if (!isSystem || isUpdatedSystem){
                 String label = "\""+pkg.applicationInfo.loadLabel(pmanager).toString()+"\"";
-                
                 if (!first){
-                    sbrest.append(",");
                     sbrest.append("\n");
                 }
-                sbrest.append("      \"").append(pkg.packageName).append("\":{")
+                sbrest.append("{")
+                    .append("\"package\":").append(pkg.packageName != null ? "\""+pkg.packageName+"\"" : "unknown").append(",")
                     .append("\"appName\":").append(label != null ? label : "unknown").append(",")
                     .append("\"vCode\":").append(pkg.getLongVersionCode()).append(",")
                     .append("\"vName\":\"").append(pkg.versionName != null ? pkg.versionName : "unknown").append("\"");
                 sbrest.append("}");
                 first = false;
-            //}
-        }
-        return  """
-                {
-                   "packages":{
-                """+sbrest.toString()+
-            """
-            \n   }
             }
-            """;
+        }
+        return sbrest.toString();
     }
 }

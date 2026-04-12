@@ -1,5 +1,4 @@
 #include "gerenciador_pacotes.hpp"
-#include "apkm_packages_manager.hpp"
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -404,42 +403,104 @@ std::vector<std::string> GerenciadorPacotes::extrairStringsAxml(const std::vecto
 }
 
 bool GerenciadorPacotes::upgradePacotes(){
+    vector<AddOn*> addonsToUpdate = vector<AddOn*>();
     for(AddOn* addon : configs->addonsdinamicos){
         if(addon->getConfig()){
             if(addon->config->novaversao){
-                vector<string> pacoteInfos = addon->getAddonUpdate();
-                if(!apkInstaller(pacoteInfos[0], pacoteInfos[1], configs)){
-                    //Retonar texto avisando da falha
-
-                    //Aborta processo de atualizações para evitar mais erros
-                    return false;
-                }
+                addonsToUpdate.push_back(addon);
             }
         }
+    }
+
+    if(addonsToUpdate.size()>0){
+        string addonsList;
+        for(AddOn* addon : addonsToUpdate){
+            if(addonsList==""){
+                addonsList=addon->config->nome;
+            }else addonsList.append(", "+addon->config->nome);
+        }
+        if(!configs->formatoJSON){
+            NLIND(configs->stringsidioma->QUEST_ADDONS_UPGRADE[0]+addonsList+configs->stringsidioma->QUEST_ADDONS_UPGRADE[1]);
+            string resposta;
+            getline(cin, resposta);
+            if(resposta!="s" && resposta!="S" && resposta!="y" && resposta!="Y"){
+                NLIND(configs->stringsidioma->INSTAL_CANCELADA[0]+addonsList+configs->stringsidioma->INSTAL_CANCELADA[1]);
+                return true;
+            }else{
+                startAddOnsUpgrade(addonsToUpdate);
+            }
+        }
+        else startAddOnsUpgrade(addonsToUpdate);
     }
     //Map com pacote e versão do pacote
     unordered_map<string, int> pacotesInfos;
     Helper* helper = new Helper(configs);
     //Popula a lista de pacotes e obtem o JSON de pacotes instalados para a verificação via AddOn
-    string retorno = obterVersõesPacotesInstalados(pacotesInfos, helper);
+    vector<PackageInfo*> pacotesInstalados = vector<PackageInfo*>();
+    string retorno = helper->getPackagesInfos(pacotesInstalados);
+    cout << "Pacotes instalados: " << retorno << endl;
     delete helper;
-
+    unordered_map<string,PackageInfo*> pacotesAtualizaveis = unordered_map<string,PackageInfo*>();
+    for(RemoteRepoConfig* repoconfig : configs->reposglobais){
+        for(DadosPacote* pacote : repoconfig->pacotes){
+            for(PackageInfo* pacoteInstalado : pacotesInstalados){
+                if(pacote->pacote==pacoteInstalado->getPackage()){
+                    if(pacote->versionIsNewerThan(pacoteInstalado)){
+                        pacotesInfos[pacote->pacote]=pacoteInstalado;
+                        pacotesAtualizaveis[pacote->pacote]=new PackageInfo(pacote->pacote, pacote->nome, pacote->versão, 0);
+                    }
+                }
+            }
+        }
+    }
+    for(AddOn* addon : configs->addonsdinamicos){
+        if(addon->getConfig()){
+            vector<PackageInfo*> pacotesAtualizaveisTmp = addon->getPackagesUpdatesFromJSON(retorno);
+            for(PackageInfo* pacote : pacotesAtualizaveisTmp){
+                string pkgName = stringSplit(&pacote->getPackage(), ':')[1];
+                if(pacotesInfos.find(pkgName)!=pacotesInfos.end()){
+                    pacotesAtualizaveis[pkgName]=pacote;
+                }else if(pacote->versionIsNewerThan(pacotesAtualizaveis[pkgName])){
+                    pacotesAtualizaveis[pkgName]=pacote;
+                }
+            }
+        }
+    }
     return true;
 }
 
-//Grava array de pacotes instalados e retorna o JSON bruto
-string GerenciadorPacotes::obterVersõesPacotesInstalados(unordered_map<string, int> pacotesInfos, Helper* helper){
-    vector<PackageInfo*> pacotes;
-    string retorno = helper->getPackagesInfos(pacotes);
-    for(PackageInfo* pacote : pacotes){
-        pacotesInfos[pacote->getPackageName()]=stoi(pacote->getVersionCode());
-        delete pacote;
+void GerenciadorPacotes::startAddOnsUpgrade(vector<AddOn*> addonsToUpdate){
+    for(AddOn* addon : addonsToUpdate){
+        vector<string> pacoteLocal = addon->getAddonUpdate();
+        //Movendo APK para pasta temporária e instalando
+        filesystem::path tempPath = obterPastaTemporaria()+"/"+addon->config->nome+".apk";
+        if(filesystem::exists(tempPath)){
+            filesystem::remove(tempPath);
+        }
+        filesystem::copy_file(pacoteLocal[0], tempPath);
+        pacoteLocal[0]=tempPath;
+        if(configs->formatoJSON){
+            if(pacoteLocal.size()>0 && apkInstaller(pacoteLocal[0], pacoteLocal[1], configs)){
+                printInfo("INFO", configs->stringsidioma->ADDON_ATUALIZADO[0]+addon->config->nome+configs->stringsidioma->ADDON_ATUALIZADO[1]);
+            }else{
+                printInfo("ERROR", configs->stringsidioma->ADDON_N_ATUALIZADO[0]+addon->config->nome+configs->stringsidioma->ADDON_N_ATUALIZADO[1]);
+            }
+        }else{
+            if(pacoteLocal.size()>0 && apkInstaller(pacoteLocal[0], pacoteLocal[1], configs)){
+                NLIND(configs->stringsidioma->ADDON_ATUALIZADO[0]+addon->config->nome+configs->stringsidioma->ADDON_ATUALIZADO[1]);
+            }else{
+                NLIND(configs->stringsidioma->ADDON_N_ATUALIZADO[0]+addon->config->nome+configs->stringsidioma->ADDON_N_ATUALIZADO[1]);
+            }
+        }
     }
-    return retorno;
 }
 
-//retorna id de pacote e versionCode
-unordered_map<string, int> GerenciadorPacotes::obterUpdatesOnAddon(string pacotesJson, AddOn* addon){
-    unordered_map<string, int> updates;
-    return updates;
+void GerenciadorPacotes::startAppsUpgrade(vector<DadosPacote*> pacotesToUpdate){{
+    for(DadosPacote* pacote : pacotesToUpdate){
+        for(RemoteRepoConfig* repoconfig : configs->reposglobais){
+            for(DadosPacote* repoPacote : repoconfig->pacotes){
+                
+            }
+        }
+    }
 }

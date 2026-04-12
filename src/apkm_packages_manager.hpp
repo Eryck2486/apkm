@@ -11,17 +11,18 @@
 class PackageInfo
 {
     public:
-        PackageInfo(std::string appName, std::string packageName, std::string versionName, std::string versionCode);
+        PackageInfo(std::string package, std::string appName, std::string versionName, long versionCode);
         ~PackageInfo();
-        std::string getPackageName();
         std::string getVersionName();
-        std::string getVersionCode();
+        long getVersionCode();
         std::string getAppName();
+        std::string getPackage();
+        bool versionIsNewerThan(PackageInfo* other);
     private:
+        std::string package;
         std::string appName;
-        std::string packageName;
         std::string versionName;
-        std::string versionCode;
+        long versionCode;
 };
 #endif
 

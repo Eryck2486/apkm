@@ -12,7 +12,9 @@ using json = nlohmann::json;
 struct RepoConfig;
 struct Config;
 
-
+struct RemoteRepoConfig;
+struct RepoConfig;
+struct Tools;
 
 //Classe principal do gerenciador de repositórios
 class Repomanager{

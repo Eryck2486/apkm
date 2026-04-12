@@ -34,7 +34,7 @@ private:
     static void mostrarListaResultados(std::vector<DadosPacote*> pacotes, Config* configs);
     bool instalarPacote(DadosPacote* pacote, RemoteRepoConfig* repoConfig);
     bool apkInstaller(std::filesystem::path apkPath, std::string pacote, Config* configs);
-    static std::string obterVersõesPacotesInstalados(std::unordered_map<std::string, int> pacotesInfos, Helper* helper);
-    static std::unordered_map<std::string, int> obterUpdatesOnAddon(std::string pacotesJson, AddOn* addon);
     static bool versionComparer(std::string instVer, std::string ActVer);
+    void startAddOnsUpgrade(std::vector<AddOn*> addonsToUpdate);
+    void startAppsUpgrade(std::vector<DadosPacote*> pacotesToUpdate);
 };

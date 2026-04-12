@@ -6,6 +6,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <sstream>
+#include "apkm_packages_manager.hpp"
 
 //Cores para o console
 #define BOLDBLACK   "\033[1m\033[30m"      /* Bold Black */
@@ -60,6 +61,7 @@ struct DadosPacote
     std::string nome; //Nome amigável do aplicativo
     std::string descrição; //Descrição do pacote
     std::string versão; //Versão do pacote
+    long versionCode; //Version code do pacote para controle de versões (Número inteiro, quanto maior mais recente)
     std::string sha256sum; //Hash SHA256 do arquivo APK
     std::string endereço; //Endereço completo para download do APK
     std::vector<std::string> arquiteturas; //Arquiteturaa suportadaa pelo pacote (ex: arm64-v8a, armv7a...)
@@ -92,15 +94,15 @@ struct RemoteRepoConfig
 //Estrutura de configurações de um AddOn, funciona como um registro de todas as informações importantes do AddOn
 struct AddOnConfig
 {
-    bool dinamico; //Indica se o AddOn é dinâmico (biblioteca .so) ou estático (apenas retorna RemoteRepoConfig)
+    bool dinamico; //Indica se o AddOn é dinâmico
     std::string descrição; //Descrição do AddOn
     std::string fornecedor; //Fornecedor do AddOn
     std::string nome; //Nome de exibição
     std::string addonpacote; //Pacote do Addon no sistema
     std::string versão; //versão atual do AddOn
-    bool novaversao; //Armazena a URL da nova versão do AddOn caso uma atualização seja encontrada (Caso contenha uma URL o Addon encontrou uma atualização disponível)
+    bool novaversao; //Indica se há uma nova versão do AddOn disponível (Utilizado para AddOns dinâmicos que implementam self-update)
     std::string prefix; //prefixo pelo qual o usuário chamará o AddOns de forma direta, o prefixo é utilizado em seleção direta onde por exemplo no comando "apkm install fdroid:com.termux" o prefixo é fdroid
-    std::string socketName; //nome atual do socket de comunicação com o AddOn
+    std::string socketName; //nome atual do socket de comunicação com o AddOn que é gerado em formato de UUID aleatório para evitar conflitos entre AddOns, o nome do socket é utilizado para comunicação direta com o AddOn sem depender do binder do Android (Mais rápido e eficiente)
 };
 
 struct Config;
@@ -127,7 +129,7 @@ public:
     //Solicita o apk de atualização do AddOn (self-update)
     std::vector<std::string> getAddonUpdate();
     //Recebe uma lista dos pacotes instalados e retorna um JSON com os Apps que podem ser atualizados
-    std::string getPackagesUpdatesFromJSON(std::string jsonstr);
+    std::vector<PackageInfo*> getPackagesUpdatesFromJSON(std::string jsonstr);
     //Obtem a configuração do AddOn
     bool getConfig();
     //Função de query principal, essa é a "ponte" que permite que o APKM se comunique com os APKs que são AddOns
@@ -142,6 +144,8 @@ public:
     AddOnConfig* config;
     //Configurações globais
     Config* mainCfg;
+    //Comunicação de dowload de arquivos no AddOn (Utilizada para obter o status do download e exibir barra de progresso)
+    std::vector<std::string> initDownloadComunication(std::string request);
 private:
     //Cria um socket para que o AddOn envie o estado de tarefa atual como por exemplo % do download
     bool iniciarSocketFeedback(bool &key);

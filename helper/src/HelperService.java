@@ -10,6 +10,7 @@ import android.util.Log;
 
 public class HelperService{
     private static final String SOCKET_NAME = "apkm_service_socket";
+    private static final String VERSION = "1.0-service";
     public static void main(String[] args) {
         try {
             // 1. Inicializa o ambiente de sistema
@@ -42,14 +43,9 @@ public class HelperService{
                         if (input != null) {
                             // Lógica de roteamento baseada na entrada
                             switch (input) {
-                                case "GET_PACKAGES":
-                                    out.println(buildPackageJson(pm));
-                                    break;
-                                    
                                 case "GET_VERSION":
-                                    out.println("{\"version\": \"1.0-service\"}");
+                                    out.println("{\"version\": \""+VERSION+"\"}");
                                     break;
-                                    
                                 case "PING":
                                     out.println("PONG");
                                     break;
@@ -75,25 +71,5 @@ public class HelperService{
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    private static String buildPackageJson(PackageManager pm) {
-        StringBuilder sb = new StringBuilder("{\"packages\":[");
-        List<PackageInfo> packages = pm.getInstalledPackages(0);
-        
-        for (int i = 0; i < packages.size(); i++) {
-            PackageInfo pkg = packages.get(i);
-            // Agora o loadLabel FUNCIONA porque temos o contexto!
-            String label = pkg.applicationInfo.loadLabel(pm).toString().replace("\"", "\\\"");
-            
-            sb.append("{")
-              .append("\"id\":\"").append(pkg.packageName).append("\",")
-              .append("\"name\":\"").append(label).append("\",")
-              .append("\"vCode\":").append(pkg.getLongVersionCode())
-              .append("}");
-            
-            if (i < packages.size() - 1) sb.append(",");
-        }
-        return sb.append("]}").toString();
     }
 }
