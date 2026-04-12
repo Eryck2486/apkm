@@ -250,5 +250,8 @@ build_module:
 # Clean target: removes generated files
 clean:
 	$(RM) $(TARGET) $(OBJS)
-	$(RM) -rf include/
+	$(RM) -rf include/curl/lib/.libs/libcurl.a
+	$(RM) -rf include/openssl/libssl.a
+	$(RM) -rf include/openssl/libcrypto.a
+	$(RM) -rf include/libzip/lib/libzip.a
 	$(RM) -rf build/
