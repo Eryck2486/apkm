@@ -537,10 +537,17 @@ void GerenciadorPacotes::startAppsUpgrade(unordered_map<string,PackageInfo*> pac
     for(auto it = pacotesToUpdate.begin(); it != pacotesToUpdate.end(); ++it){
         pacotesNomes.push_back(it->second->getPackage());
     }
-    prepararInstalarPacotes(pacotesNomes);
-    if(!configs->formatoJSON){
-        NLIND(configs->stringsidioma->PACOTES_ATUALIZADOS[0]);
+    if(prepararInstalarPacotes(pacotesNomes)){
+        if(!configs->formatoJSON){
+            NLIND(configs->stringsidioma->PACOTES_ATUALIZADOS[0]);
+        }else{
+            printInfo("INFO", configs->stringsidioma->PACOTES_ATUALIZADOS[0]);
+        }
     }else{
-        printInfo("INFO", configs->stringsidioma->PACOTES_ATUALIZADOS[0]);
+        if(!configs->formatoJSON){
+            NLIND(configs->stringsidioma->PACOTES_N_ATUALIZADOS[0]);
+        }else{
+            printInfo("ERROR", configs->stringsidioma->PACOTES_N_ATUALIZADOS[0]);
+        }
     }
 }
