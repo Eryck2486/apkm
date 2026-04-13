@@ -4,4 +4,4 @@ version=v1.0-beta
 versionCode=1
 author=Eryck
 description=Gerenciador de pacotes completo para Android
-updateJson=https://raw.githubusercontent.com/Eryck2486/apkm/refs/heads/main/update.json
+updateJson=https://raw.githubusercontent.com/Eryck2486/apkm/main/update.json
