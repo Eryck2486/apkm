@@ -1,7 +1,7 @@
 {
     "strings": {
         "CARREGANDO_REPOSITORIOS": [ "Carregando lista de repositórios..." ],
-        "ERRO_REPOS_N_ENCONTRADOS": [ "Erro ao listar repositórios, baixando repositórios originais" ],
+        "ERRO_REPOS_N_ENCONTRADOS": [ "Erro ao listar repositórios, nenhum repositório encontrado." ],
         "SIM": [ "Sim" ],
         "NAO": [ "Não" ],
         "USANDO_SSL": [ "Usando SSL" ],

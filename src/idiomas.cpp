@@ -126,7 +126,7 @@ std::vector<std::string> Strings::obterStringEn(std::string sttr){
     if(sttr == "CARREGANDO_REPOSITORIOS"){
         return { "Loading repository list" };
     }else if(sttr == "ERRO_REPOS_N_ENCONTRADOS"){
-        return { "Error listing repositories, downloading original repositories" };
+        return { "Error listing repositories, no repositories found." };
     }else if(sttr == "SIM"){
         return { "Yes" };
     }else if(sttr == "NAO"){    

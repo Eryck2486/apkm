@@ -104,9 +104,8 @@ std::vector<RepoConfig*> Repomanager::CarregarRepositóriosLocais(Config* config
             if(arquivo.extension()==".json") repoFiles.push(arquivo);
         }
     } catch (const filesystem::filesystem_error& e) {
-        std::cerr << s->ERRO_REPOS_N_ENCONTRADOS[0];
+        std::cerr << s->ERRO_REPOS_N_ENCONTRADOS[0] << endl;
         filesystem::create_directories(sources_dir(""));
-        //Lógica para baixar lista de reposiórios da branch master do github
     }
     
     vector<RepoConfig*> repositorios;
