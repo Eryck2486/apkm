@@ -47,14 +47,15 @@ else ifeq ($(ARCHITECTURE),x86)
     NDK_ARCH=i686
 	TOOLCHAINNAME=android
 	OPENSSL_TARGET=android-x86
-    SPECIFIC_LIBS="-lssl"
+    SPECIFIC_LIBS="-ldl -lm"
 else ifeq ($(ARCHITECTURE),arm)
     NDK_ARCH=armv7a
     TOOLCHAINNAME=androideabi
     # O OpenSSL para ARM 32-bit precisa desse alvo específico
     OPENSSL_TARGET=android-arm
     # IMPORTANTE: Forçar libatomic no ARMv7
-    SPECIFIC_LIBS="-lssl"
+	SPECIFIC_LIBS="-lcrypto -latomic -ldl -lm"
+	LIBZIP_ARCH=armeabi-v7a
 else 
     NDK_ARCH=$(ARCHITECTURE)
 	TOOLCHAINNAME=android
@@ -132,6 +133,7 @@ prepare: clean
 		cd include; \
 		if [ ! -e openssl ]; then git clone $(OPENSSLREPO); fi; \
 		cd openssl; \
+		if [ -e Makefile ]; then make clean; fi; \
 		PATH=$(PATH) \
 		AR=$(LLVMAR) \
 		CC="$(CC)" \
@@ -157,6 +159,7 @@ prepare: clean
 		cd include; \
 		if [ ! -e curl ]; then git clone $(CURLREPO); fi; \
 		cd curl; \
+		if [ -e Makefile ]; then make clean; fi; \
 		echo "Configurando Curl..."; \
 		autoreconf -fi && \
 		PATH=$(PATH) \
@@ -170,16 +173,18 @@ prepare: clean
 		CCFLAGS="-I$(OPENSSL_INST)/include $(ARGUMENTOSPADROES)" \
 		RANLIB=$(LLVMRANLIB) \
 		./configure --host=$(NDK_ARCH)-linux-$(TOOLCHAINNAME) \
+			--target=arm-linux-$(TOOLCHAINNAME) \
+			--build=$(shell uname -m)-linux-gnu \
 			--enable-static \
 			--disable-shared \
 			--without-libpsl \
 			--disable-ldap \
             --disable-ldaps \
-			--with-openssl=$(OPENSSL_INST) \
+			--with-ssl=$(OPENSSL_INST) \
 			--prefix=$(WORKDIR)/include/curl/build_output \
 			CPPFLAGS="-I$(OPENSSL_INST)/include -DANDROID -D__ANDROID_API__=$(ANDROIDAPILEVEL) $(ARGUMENTOSPADROES)" \
             LDFLAGS="-L$(OPENSSL_INST) -L$(SYSROOT)/usr/lib/$(NDK_ARCH)-linux-$(TOOLCHAINNAME)/$(ANDROIDAPILEVEL)" \
-            LIBS="$(SPECIFIC_LIBS)" && \
+            LIBS=$(SPECIFIC_LIBS) && \
 		make -j$(nproc) CPPLAGS=$(ARGUMENTOSPADROES); \
 		echo "\n Curl Configurado"; \
 	else echo "Erro, falha ao compilar OpenSSL"; \
@@ -191,7 +196,7 @@ prepare: clean
 		cd include; \
 		if [ ! -e libzip ]; then git clone $(LIBZIPREPO); fi; \
 		cd libzip; \
-		mkdir -p build; \
+		if [ -e Makefile ]; then make clean; fi; \
 		PATH=$(PATH) \
 		AR=$(LLVMAR) \
 		CC=$(CC) \
