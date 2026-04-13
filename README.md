@@ -25,7 +25,7 @@ Esse gerenciador não teve a eficácia da segurança comprovada e não garante a
 
 Serão feitas alterações nas políticas do SELinux para que o APKM Store (Assistente de UI para pessoas leigas) consiga execultar os sockets do programa corretamente sem ser bloqueado por trava de contexto.
 
-O binário oficial foi compilado e testado no Android 16, outras versões ainda não foram testadas, versões de 32 bits não são suportadas oficialmente.
+O binário oficial foi compilado e testado no Android 16, outras versões ainda não foram testadas.
 
 
 ## Como compilar:

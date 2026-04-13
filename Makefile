@@ -247,7 +247,7 @@ build_module:
 #Copia o binário do apkm para a estrutura do módulo
 	cp $(TARGET) build/apkm-magisk-module/system/bin/apkm;
 #criando o zip do módulo
-	cd build/apkm-magisk-module && zip -r ../apkm-module-$(ARCHITECTURE)-$(ANDROIDAPILEVEL).zip *;
+	cd build/apkm-magisk-module && zip -r ../apkm-module-$(ARCHITECTURE)-API$(ANDROIDAPILEVEL).zip *;
 
 # Phony targets don't correspond to actual files
 .PHONY: all clean prepare build_module build_helper build_apkm build
