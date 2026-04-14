@@ -56,7 +56,12 @@ else ifeq ($(ARCHITECTURE),arm)
     # IMPORTANTE: Forçar libatomic no ARMv7
 	SPECIFIC_LIBS="-lcrypto -latomic -ldl -lm"
 	LIBZIP_ARCH=armeabi-v7a
-else 
+else ifeq ($(ARCHITECTURE),x86_64)
+	NDK_ARCH=x86_64
+	TOOLCHAINNAME=android
+	OPENSSL_TARGET=android-x86_64
+	SPECIFIC_LIBS="-lssl -ldl -lm"
+else
     $(error Arquitetura não suportada: $(ARCHITECTURE))
 endif
 
