@@ -7,6 +7,12 @@ Módulo Magisk/KernelSU que oferece um gerenciador de pacotes online para Androi
 
 O objetivo do projeto é criar um ambiente livre das restrições da API do Google, recomenda-se o uso no Android AOSP, mas funciona perfeitamente em dispositivos certificados desde que ele esteja execultando um gerenciador root baseado no Magisk root.
 
+# Screenshots:
+<img width="2560" height="1600" alt="image" src="https://github.com/user-attachments/assets/1e00e32c-c14b-4e17-ae84-85a59f03fb67" />
+<img width="2560" height="1600" alt="image" src="https://github.com/user-attachments/assets/e28994b1-b81a-4361-b31c-da0684be1a98" />
+<img width="2560" height="1600" alt="image" src="https://github.com/user-attachments/assets/98f0a6de-426b-4c0a-9964-ed8cfcea7557" />
+<img width="2560" height="1600" alt="image" src="https://github.com/user-attachments/assets/71b51a42-d1e3-4b6e-866b-a11dfb0f6c13" />
+
 ## Como funciona:
 
 O gerenciador se chama apkm que é uma abreviação de Android Package Manager
