@@ -3,5 +3,5 @@ name=APKM - Android Package Manager
 version=v1.0-beta
 versionCode=1
 author=Eryck2486
-description=Gerenciador de pacotes completo para Android
+description=Complete package manager for Android.
 updateJson=https://raw.githubusercontent.com/Eryck2486/apkm/main/update.json
