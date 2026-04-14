@@ -20,7 +20,7 @@ O gerenciador é um programa de terminal sem UI, ou seja, é necessário o acess
 
 Digite: 
 ```bash
-apkm --help
+apkm
 ```
 no terminal para obter os comandos disponíveis.
 
