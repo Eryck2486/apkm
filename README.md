@@ -20,7 +20,7 @@ The manager is a terminal program without a UI, meaning access to a terminal emu
 
 Type: 
 ```bash
-apkm --help
+apkm
 ```
 in the terminal to get the available commands.
 
