@@ -20,7 +20,7 @@ El gestor es un programa de terminal sin interfaz de usuario (UI), es decir, es 
 
 Escriba: 
 ```bash
-apkm --help
+apkm
 ```
 en el terminal para obtener los comandos disponibles.
 
