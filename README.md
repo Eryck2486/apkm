@@ -1,58 +1,59 @@
+[![Português Brasileiro](https://img.shields.io/badge/Language-PT--BR-green.svg)](README.pt-BR.md)
+[![English](https://img.shields.io/badge/Language-EN-green.svg)](README.md)
+[![Espanhol](https://img.shields.io/badge/Language-ES-green.svg)](README.es.md)
+
 # apkm
-Módulo Magisk/KernelSU que oferece um gerenciador de pacotes online para Android com acesso a repositórios e AddOns nativamente para facilitar sideloading de Apps de quaisquer fontes da Web
+Magisk/KernelSU module that offers an online package manager for Android with native access to repositories and AddOns to facilitate sideloading Apps from any Web source.
 
-O objetivo do projeto é criar um ambiente livre das restrições da API do Google, recomenda-se o uso no Android AOSP, mas funciona perfeitamente em dispositivos certificados desde que ele esteja execultando um gerenciador root baseado no Magisk root.
+The goal of the project is to create an environment free from Google API restrictions. Use on Android AOSP is recommended, but it works perfectly on certified devices as long as they are running a Magisk-based root manager.
 
-## Como funciona:
+## How it works:
 
-O gerenciador se chama apkm que é uma abreviação de Android Package Manager
-O gerenciador é um programa de terminal sem UI, ou seja, é necessário o acesso a um emulador de terminal ou acesso ao ADB, para ter uma UI instale o APKM Store.
+The manager is called apkm, which is an abbreviation for Android Package Manager.
+The manager is a terminal program without a UI, meaning access to a terminal emulator or ADB is required. To have a UI, install APKM Store.
 
-Digite: 
+Type: 
 ```bash
 apkm --help
 ```
-no terminal para obter os comandos disponíveis.
+in the terminal to get the available commands.
 
-Addons ou servidores de repositório são necessários para ter pacotes disponíveis.
+Addons or repository servers are required to have packages available.
 
-Deve ser execultado com sudo ou em terminal root, caso contrário ocorrerão erros.
-    
+It must be run with sudo or in a root terminal; otherwise, errors will occur.
 
-## Avisos:
+## Notices:
 
-Esse gerenciador não teve a eficácia da segurança comprovada e não garante a segurança do sistema, use por sua conta e risco
+This manager has not had its security effectiveness proven and does not guarantee system security; use it at your own risk.
 
-Serão feitas alterações nas políticas do SELinux para que o APKM Store (Assistente de UI para pessoas leigas) consiga execultar os sockets do programa corretamente sem ser bloqueado por trava de contexto.
+Changes will be made to SELinux policies so that APKM Store (UI Assistant for non-technical users) can execute the program's sockets correctly without being blocked by context locks.
 
-O binário oficial foi compilado e testado no Android 16, outras versões ainda não foram testadas.
+The official binary was compiled and tested on Android 16; other versions have not yet been tested.
 
+## How to compile:
 
-## Como compilar:
-
-O processo de compilação tem três formas de ser feita, a compilação das bibliotecas com o binário (Execultar sem aspas) exemplo para arm de 64 bits: 
+The compilation process can be done in three ways. Compiling the libraries with the binary (run without quotes), example for 64-bit arm: 
 ```bash 
 make build arch=aarch64
 ``` 
-gera as bibliotecas, binário do apkm e o módulo magisk
+generates the libraries, the apkm binary, and the magisk module.
 
-A segunda forma só funciona após a primeira ser concluida pela primeira vez, ela é util quando é conveniente recompilar apenas o binário do apkm sem recompilar as bibliotecas auxiliares para testes rápidos, se a arquitetura mudar é necessário recompilar as bibliotecas novamente:
+The second way only works after the first one has been completed for the first time. It is useful when it is convenient to recompile only the apkm binary without recompiling the auxiliary libraries for quick tests. If the architecture changes, it is necessary to recompile the libraries again:
 
 ```bash
 make build_apkm arch=aarch64
 ```
-gera apenas o binário do apkm e o módulo magisk
+generates only the apkm binary and the magisk module.
 
-A terceira forma gera o módulo magisk diretamente:
+The third way generates the magisk module directly:
 ```bash
 make build_module
 ```
-gera o módulo magisk
+generates the magisk module.
 
-
-## Bibliotecas/toolchins utilizadas:
-json: https://github.com/nlohmann/json/  
-libzip: https://github.com/nih-at/libzip  
-libcurl https://github.com/curl/curl  
-openssl https://github.com/openssl/openssl  
-Android NDK: https://dl.google.com/android/repository/android-ndk-r29-linux.zip?hl=pt-br  
+## Libraries/toolchins used:
+json: https://github.com/nlohmann/json
+libzip: https://github.com/nih-at/libzip
+libcurl https://github.com/curl/curl
+openssl https://github.com/openssl/openssl
+Android NDK: https://dl.google.com/android/repository/android-ndk-r29-linux.zip

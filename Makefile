@@ -57,10 +57,7 @@ else ifeq ($(ARCHITECTURE),arm)
 	SPECIFIC_LIBS="-lcrypto -latomic -ldl -lm"
 	LIBZIP_ARCH=armeabi-v7a
 else 
-    NDK_ARCH=$(ARCHITECTURE)
-	TOOLCHAINNAME=android
-	OPENSSL_TARGET=android-x86_64
-    SPECIFIC_LIBS="-lssl"
+    $(error Arquitetura não suportada: $(ARCHITECTURE))
 endif
 
 CXXFLAGS = \
@@ -95,6 +92,8 @@ build: $(SRCS) prepare
 
 build_apkm: build_helper $(SRCS)
 	$(CXX) $(CXXFLAGS) $(SRCS) $(EXARGS) -o $(TARGET);
+#Processo de strip do binário para reduzir o tamanho e mensagens de debug
+	$(LLVMSTRIP) $(TARGET);
 	@if [ -e $(TARGET) ]; then \
 		echo "Binário "$(TARGET)" compilado para arquitetura "$(ARCHITECTURE)" com sucesso."; \
 	else echo "Falha ao criar o binário "$(TARGET)" para a arquitetura "$(ARCHITECTURE)"."; \
